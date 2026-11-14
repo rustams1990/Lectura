@@ -726,6 +726,27 @@ export default function TextSettingsControls({
                       </label>
                     </div>
 
+                    {/* 3b. Pronunciation Microphone Icon on Lines */}
+                    <div className="flex items-center justify-between border-t border-zinc-200/50 dark:border-zinc-850 pt-2.5">
+                      <div className="space-y-0.5">
+                        <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-200 block">
+                          {t('explainer.show_reader_mic', 'Pronunciation Microphone (🎙️)')}
+                        </span>
+                        <span className="text-[9.5px] text-zinc-400 block leading-tight">
+                          {t('explainer.show_reader_mic_desc', 'Show microphone icon on sentences and in the word card for pronunciation check (M)')}
+                        </span>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer select-none shrink-0 ml-3">
+                        <input
+                          type="checkbox"
+                          className="sr-only peer"
+                          checked={settings.showReaderMicButton !== false}
+                          onChange={(e) => updateKey("showReaderMicButton", e.target.checked)}
+                        />
+                        <div className="relative w-9 h-5 bg-zinc-200 dark:bg-zinc-800 rounded-full peer peer-focus:ring-1 peer-focus:ring-teal-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-zinc-600 peer-checked:bg-teal-600"></div>
+                      </label>
+                    </div>
+
                     {/* 4. Sentence Split */}
                     <div className="flex items-center justify-between border-t border-zinc-200/50 dark:border-zinc-850 pt-2.5">
                       <div className="space-y-0.5">

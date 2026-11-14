@@ -12013,11 +12013,28 @@ function getLocalServerDb(userId = "default") {
       }
     }
     let history = [];
+    let deletedHistoryIds = [];
+    try {
+      const delHistRow = db.prepare("SELECT value FROM metadata WHERE user_id = ? AND key = 'deletedHistoryIds'").get(userId);
+      if (delHistRow?.value) {
+        const parsed = JSON.parse(delHistRow.value);
+        if (Array.isArray(parsed)) deletedHistoryIds = parsed;
+      }
+    } catch (_) {
+    }
+    const deletedHistorySet = new Set(deletedHistoryIds);
     try {
       const historyRows = db.prepare(
         "SELECT * FROM reading_history WHERE user_id = ? ORDER BY timestamp DESC"
       ).all(userId);
-      history = historyRows.map((h) => ({
+      history = historyRows.filter((h) => {
+        if (deletedHistorySet.has(h.id)) return false;
+        const hDay = typeof h.timestamp === "string" && h.timestamp.length >= 10 ? h.timestamp.slice(0, 10) : "";
+        if (h.youtubeId && hDay && deletedHistorySet.has(`yt::${h.youtubeId}::${hDay}`)) return false;
+        const hTitleKey = (h.customTitle || h.lessonTitle || "").trim().toLowerCase();
+        if (hTitleKey && hDay && deletedHistorySet.has(`title::${hTitleKey}::${hDay}`)) return false;
+        return true;
+      }).map((h) => ({
         id: h.id,
         lessonId: h.lessonId,
         lessonTitle: h.lessonTitle,
@@ -12121,6 +12138,7 @@ function getLocalServerDb(userId = "default") {
       listeningSeconds,
       languageFlags,
       history,
+      deletedHistoryIds,
       videoProgress,
       readingProgress,
       readerSettings,
@@ -12708,8 +12726,37 @@ function saveLocalServerDb(userId = "default", data) {
           id, user_id, lessonId, lessonTitle, lessonType, coverUrl, targetLanguage, timestamp, actionType, status, durationSeconds, notes, channelName, channelAvatarUrl, channelUrl, category, customTitle, mode, tags, lastPosition, audioUrl, guid, podcastTitle, primaryTag, youtubeId, duration
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
+      let serverDeletedHistorySet = /* @__PURE__ */ new Set();
+      try {
+        const delHistRow = db.prepare("SELECT value FROM metadata WHERE user_id = ? AND key = 'deletedHistoryIds'").get(userId);
+        if (delHistRow?.value) {
+          const parsed = JSON.parse(delHistRow.value);
+          if (Array.isArray(parsed)) {
+            serverDeletedHistorySet = new Set(parsed);
+          }
+        }
+      } catch (_) {
+      }
       if (Array.isArray(data.deletedHistoryIds) && data.deletedHistoryIds.length > 0) {
         const placeholders = data.deletedHistoryIds.map(() => "?").join(",");
+        try {
+          const rowsToDelete = db.prepare(`SELECT id, youtubeId, lessonTitle, customTitle, timestamp FROM reading_history WHERE user_id = ? AND id IN (${placeholders})`).all(userId, ...data.deletedHistoryIds);
+          for (const r of rowsToDelete) {
+            if (!r) continue;
+            const day = typeof r.timestamp === "string" && r.timestamp.length >= 10 ? r.timestamp.slice(0, 10) : "";
+            if (r.youtubeId && day) serverDeletedHistorySet.add(`yt::${r.youtubeId}::${day}`);
+            const titleKey = (r.customTitle || r.lessonTitle || "").trim().toLowerCase();
+            if (titleKey && day) serverDeletedHistorySet.add(`title::${titleKey}::${day}`);
+          }
+        } catch (_) {
+        }
+        for (const delId of data.deletedHistoryIds) {
+          if (typeof delId === "string" && delId) serverDeletedHistorySet.add(delId);
+        }
+        const updatedTombstones = Array.from(serverDeletedHistorySet).slice(-5e3);
+        serverDeletedHistorySet = new Set(updatedTombstones);
+        insertMetadata.run(userId, "deletedHistoryIds", JSON.stringify(updatedTombstones));
+        db.prepare(`DELETE FROM item_tags WHERE user_id = ? AND item_id IN (${placeholders})`).run(userId, ...data.deletedHistoryIds);
         const result = db.prepare(`DELETE FROM reading_history WHERE user_id = ? AND id IN (${placeholders})`).run(userId, ...data.deletedHistoryIds);
         console.log("[Server SQL Delete Bulk]", { deletedIds: data.deletedHistoryIds, changes: result.changes });
       }
@@ -12731,6 +12778,11 @@ function saveLocalServerDb(userId = "default", data) {
         const deleteById = db.prepare(`DELETE FROM reading_history WHERE user_id = ? AND id = ?`);
         for (const h of historyList) {
           if (!h || !h.id) continue;
+          if (serverDeletedHistorySet.has(h.id)) continue;
+          const hDay = typeof h.timestamp === "string" && h.timestamp.length >= 10 ? h.timestamp.slice(0, 10) : "";
+          if (h.youtubeId && hDay && serverDeletedHistorySet.has(`yt::${h.youtubeId}::${hDay}`)) continue;
+          const hTitleKey = (h.customTitle || h.lessonTitle || "").trim().toLowerCase();
+          if (hTitleKey && hDay && serverDeletedHistorySet.has(`title::${hTitleKey}::${hDay}`)) continue;
           const incomingDuration = h.durationSeconds || 0;
           const incomingPosition = h.lastPosition || 0;
           const isCompleted = h.status === "completed" || h.actionType === "complete";
@@ -15744,6 +15796,85 @@ router8.post("/unload", (_req, res) => {
   broadcastSse("model_unloaded", { message: "Model unloaded from RAM" });
   res.json({ success: true, message: "Whisper model successfully unloaded and RAM freed." });
 });
+router8.post("/pronounce", async (req, res) => {
+  const { audioBase64, language } = req.body || {};
+  if (!audioBase64 || typeof audioBase64 !== "string") {
+    return res.status(400).json({ error: "Missing audioBase64 payload" });
+  }
+  const cleanBase64 = audioBase64.replace(/^data:audio\/[^;]+;base64,/, "");
+  const tempFile = import_path9.default.join(uploadDir, `pronounce_${Date.now()}_${Math.random().toString(36).slice(2, 7)}.webm`);
+  try {
+    import_fs10.default.writeFileSync(tempFile, Buffer.from(cleanBase64, "base64"));
+    const cacheDir = import_path9.default.join(process.env.DATA_DIR || process.cwd(), "models", "whisper");
+    const pythonPath = resolvePythonExecutable();
+    const workerScript = import_path9.default.join(process.cwd(), "server", "whisper", "whisper_worker.py");
+    const langCode = language ? String(language).trim().toLowerCase().split(/[-_]/)[0] : "auto";
+    const modelToUse = loadedModelName || "base";
+    const args = [
+      workerScript,
+      tempFile,
+      "--model",
+      modelToUse,
+      "--language",
+      langCode || "auto",
+      "--threads",
+      "4",
+      "--cache-dir",
+      cacheDir
+    ];
+    const transcriptText = await new Promise((resolve, reject) => {
+      const proc = (0, import_child_process3.spawn)(pythonPath, args, { stdio: ["ignore", "pipe", "pipe"] });
+      let lastText = "";
+      let errOut = "";
+      const timeout = setTimeout(() => {
+        try {
+          proc.kill("SIGKILL");
+        } catch (_) {
+        }
+        reject(new Error("Pronunciation transcription timed out"));
+      }, 15e3);
+      proc.stdout.on("data", (chunk) => {
+        const lines = chunk.toString().split(/\r?\n/).filter(Boolean);
+        for (const line of lines) {
+          try {
+            const parsed = JSON.parse(line);
+            if (parsed.type === "result" && Array.isArray(parsed.segments)) {
+              lastText = parsed.segments.map((s) => (s.text || "").trim()).filter(Boolean).join(" ");
+            } else if (parsed.type === "segment" && parsed.text) {
+              lastText += (lastText ? " " : "") + String(parsed.text).trim();
+            }
+          } catch (_) {
+          }
+        }
+      });
+      proc.stderr.on("data", (chunk) => {
+        errOut += chunk.toString();
+      });
+      proc.on("close", (code) => {
+        clearTimeout(timeout);
+        if (code === 0 || lastText) {
+          loadedModelName = modelToUse;
+          lastActiveTimestamp = Date.now();
+          resolve(lastText.trim());
+        } else {
+          reject(new Error(errOut || `Whisper exited with code ${code}`));
+        }
+      });
+      proc.on("error", (err) => {
+        clearTimeout(timeout);
+        reject(err);
+      });
+    });
+    return res.json({ success: true, transcript: transcriptText });
+  } catch (err) {
+    return res.status(500).json({ error: err?.message || "Failed to transcribe pronunciation audio" });
+  } finally {
+    try {
+      if (import_fs10.default.existsSync(tempFile)) import_fs10.default.unlinkSync(tempFile);
+    } catch (_) {
+    }
+  }
+});
 var whisper_default = router8;
 
 // routes/wordnet.ts
@@ -18139,6 +18270,38 @@ var translate_default = router12;
 // routes/history.ts
 var import_express14 = require("express");
 var router13 = (0, import_express14.Router)();
+function recordDeletedHistoryTombstones(db, userId, idsToDelete) {
+  if (!Array.isArray(idsToDelete) || idsToDelete.length === 0) return;
+  try {
+    let existingTombstones = [];
+    const row = db.prepare("SELECT value FROM metadata WHERE user_id = ? AND key = 'deletedHistoryIds'").get(userId);
+    if (row?.value) {
+      const parsed = JSON.parse(row.value);
+      if (Array.isArray(parsed)) existingTombstones = parsed;
+    }
+    const tombstoneSet = new Set(existingTombstones);
+    for (const id of idsToDelete) {
+      if (typeof id === "string" && id) tombstoneSet.add(id);
+    }
+    const chunkSize = 500;
+    for (let i = 0; i < idsToDelete.length; i += chunkSize) {
+      const chunk = idsToDelete.slice(i, i + chunkSize);
+      const placeholders = chunk.map(() => "?").join(",");
+      const rows = db.prepare(`SELECT id, youtubeId, lessonTitle, customTitle, timestamp FROM reading_history WHERE user_id = ? AND id IN (${placeholders})`).all(userId, ...chunk);
+      for (const r of rows) {
+        if (!r) continue;
+        const day = typeof r.timestamp === "string" && r.timestamp.length >= 10 ? r.timestamp.slice(0, 10) : "";
+        if (r.youtubeId && day) tombstoneSet.add(`yt::${r.youtubeId}::${day}`);
+        const titleKey = (r.customTitle || r.lessonTitle || "").trim().toLowerCase();
+        if (titleKey && day) tombstoneSet.add(`title::${titleKey}::${day}`);
+      }
+    }
+    const updated = Array.from(tombstoneSet).slice(-5e3);
+    db.prepare("INSERT OR REPLACE INTO metadata (user_id, key, value) VALUES (?, 'deletedHistoryIds', ?)").run(userId, JSON.stringify(updated));
+  } catch (e) {
+    console.warn("[recordDeletedHistoryTombstones] Warning:", e);
+  }
+}
 function safeParseTags(raw) {
   if (!raw) return [];
   if (Array.isArray(raw)) return raw.map((t) => String(t).trim()).filter(Boolean);
@@ -18562,7 +18725,10 @@ router13.delete("/history/:id", (req, res) => {
   const { id } = req.params;
   try {
     const db = getDbConnection(userId);
+    recordDeletedHistoryTombstones(db, userId, [id]);
+    db.prepare("DELETE FROM item_tags WHERE user_id = ? AND item_id = ?").run(userId, id);
     const result = db.prepare("DELETE FROM reading_history WHERE user_id = ? AND id = ?").run(userId, id);
+    touchUserDbVersion(userId);
     console.log("[Server SQL Delete]", { id, changes: result.changes });
     return res.json({ status: "success", id, changes: result.changes });
   } catch (err) {
@@ -18588,6 +18754,7 @@ router13.post("/history/batch-delete", (req, res) => {
     const db = getDbConnection(userId);
     let totalDeleted = 0;
     db.transaction(() => {
+      recordDeletedHistoryTombstones(db, userId, ids);
       const chunkSize = 500;
       for (let i = 0; i < ids.length; i += chunkSize) {
         const chunk = ids.slice(i, i + chunkSize);
@@ -18597,6 +18764,7 @@ router13.post("/history/batch-delete", (req, res) => {
         totalDeleted += result.changes;
       }
     })();
+    touchUserDbVersion(userId);
     console.log("[Server SQL Batch Delete]", { count: ids.length, totalDeleted });
     return res.json({ status: "success", count: ids.length, deletedCount: totalDeleted });
   } catch (err) {
@@ -19004,7 +19172,10 @@ router13.delete("/activity/log/:id", (req, res) => {
   const { id } = req.params;
   try {
     const db = getDbConnection(userId);
+    recordDeletedHistoryTombstones(db, userId, [id]);
+    db.prepare("DELETE FROM item_tags WHERE user_id = ? AND item_id = ?").run(userId, id);
     const result = db.prepare("DELETE FROM reading_history WHERE user_id = ? AND id = ?").run(userId, id);
+    touchUserDbVersion(userId);
     return res.json({ success: true, id, changes: result.changes });
   } catch (err) {
     console.error("[DELETE /api/activity/log/:id] Error:", err);
@@ -19812,7 +19983,7 @@ var import_util3 = require("util");
 var import_adm_zip2 = __toESM(require("adm-zip"), 1);
 
 // src/version.ts
-var APP_VERSION = "v1.0.49";
+var APP_VERSION = "v1.0.50";
 
 // server/updaterService.ts
 var execAsync = (0, import_util3.promisify)(import_child_process5.exec);

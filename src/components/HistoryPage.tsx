@@ -379,14 +379,33 @@ function HistoryPage({
       const targetLessonId = targetEntry?.lessonId;
       const targetGuid = (targetEntry as any)?.guid;
       const targetAudioUrl = (targetEntry as any)?.audioUrl;
-      const targetCustomTitle = targetEntry?.customTitle?.trim().toLowerCase();
+      const targetYoutubeId = (targetEntry as any)?.youtubeId;
+      const targetCustomTitle = (targetEntry?.customTitle || targetEntry?.lessonTitle || "")?.trim().toLowerCase();
+      let targetDay = "";
+      if (targetEntry?.timestamp) {
+        try {
+          const d = new Date(targetEntry.timestamp);
+          if (!isNaN(d.getTime())) targetDay = d.toLocaleDateString("en-CA");
+        } catch (_) {}
+      }
 
       const matched = history.filter((h) => {
         if (h.id === id) return true;
         if (targetLessonId && targetLessonId !== "custom" && targetLessonId !== "imported_record" && h.lessonId === targetLessonId) return true;
         if (targetGuid && ((h as any).guid === targetGuid || h.lessonId === targetGuid || h.id === targetGuid)) return true;
         if (targetAudioUrl && (h as any).audioUrl === targetAudioUrl) return true;
-        if (targetCustomTitle && h.customTitle?.trim().toLowerCase() === targetCustomTitle) return true;
+        if (targetYoutubeId && (h as any).youtubeId === targetYoutubeId) return true;
+        if (targetCustomTitle) {
+          const hTitle = (h.customTitle || h.lessonTitle || "").trim().toLowerCase();
+          if (hTitle === targetCustomTitle) {
+            if (!targetDay) return true;
+            try {
+              const hd = new Date(h.timestamp);
+              if (!isNaN(hd.getTime()) && hd.toLocaleDateString("en-CA") === targetDay) return true;
+            } catch (_) {}
+            if (h.customTitle?.trim().toLowerCase() === targetCustomTitle) return true;
+          }
+        }
         return false;
       });
 
@@ -1343,7 +1362,15 @@ function HistoryPage({
       const targetLessonId = targetEntry.lessonId;
       const targetGuid = (targetEntry as any)?.guid;
       const targetAudioUrl = (targetEntry as any)?.audioUrl;
-      const targetCustomTitle = targetEntry.customTitle?.trim().toLowerCase();
+      const targetYoutubeId = (targetEntry as any)?.youtubeId;
+      const targetCustomTitle = (targetEntry.customTitle || targetEntry.lessonTitle || "")?.trim().toLowerCase();
+      let targetDay = "";
+      if (targetEntry.timestamp) {
+        try {
+          const d = new Date(targetEntry.timestamp);
+          if (!isNaN(d.getTime())) targetDay = d.toLocaleDateString("en-CA");
+        } catch (_) {}
+      }
 
       for (const h of history) {
         if (h.id === cardId) {
@@ -1354,8 +1381,25 @@ function HistoryPage({
           allIds.add(h.id);
         } else if (targetAudioUrl && (h as any).audioUrl === targetAudioUrl) {
           allIds.add(h.id);
-        } else if (targetCustomTitle && h.customTitle?.trim().toLowerCase() === targetCustomTitle) {
+        } else if (targetYoutubeId && (h as any).youtubeId === targetYoutubeId) {
           allIds.add(h.id);
+        } else if (targetCustomTitle) {
+          const hTitle = (h.customTitle || h.lessonTitle || "").trim().toLowerCase();
+          if (hTitle === targetCustomTitle) {
+            if (!targetDay) {
+              allIds.add(h.id);
+            } else {
+              try {
+                const hd = new Date(h.timestamp);
+                if (!isNaN(hd.getTime()) && hd.toLocaleDateString("en-CA") === targetDay) {
+                  allIds.add(h.id);
+                }
+              } catch (_) {}
+              if (h.customTitle?.trim().toLowerCase() === targetCustomTitle) {
+                allIds.add(h.id);
+              }
+            }
+          }
         }
       }
     }

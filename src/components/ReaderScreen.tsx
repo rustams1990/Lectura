@@ -304,14 +304,14 @@ export default function ReaderScreen({
       }[readerSettings.maxWidth || "medium"])
     : !showRightSidebar
     ? ({
-        standard: "w-full lg:max-w-4xl mx-auto px-0",
-        wide: "w-full lg:max-w-6xl mx-auto px-0",
-        full: "w-full px-0 lg:px-6",
+        standard: "w-full lg:max-w-[min(78vw,896px)] mx-auto px-0",
+        wide: "w-full lg:max-w-[min(90vw,1152px)] mx-auto px-0",
+        full: "w-full max-w-none mx-auto px-0",
       }[readerTextWidth || "full"])
     : ({
-        standard: "w-full lg:max-w-7xl mx-auto px-0",
-        wide: "w-full lg:max-w-[1560px] mx-auto px-0",
-        full: "w-full px-0 lg:px-6",
+        standard: "w-full lg:max-w-[min(85vw,1280px)] mx-auto px-0",
+        wide: "w-full lg:max-w-[min(93vw,1560px)] mx-auto px-0",
+        full: "w-full max-w-none mx-auto px-0",
       }[readerTextWidth || "full"]);
 
   return (

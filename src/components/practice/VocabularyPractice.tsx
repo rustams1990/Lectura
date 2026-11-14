@@ -19,7 +19,7 @@ import { LANGUAGES_SUPPORTED } from "../../data";
 import { executeAiWithFailover, getOrCreateAiProfiles } from "../../services/aiFailoverService";
 import { resolveLocale, formatFriendlyDate, getLearningDurationInfo } from "../../utils/dateUtils";
 import { formatAppDate } from "../../utils/dateFormatter";
-import { getLanguageFlagEmoji } from "../LibraryHome";
+import { getLanguageFlagEmoji, renderCircularFlag } from "../LibraryHome";
 
 
 
@@ -38,6 +38,7 @@ interface VocabularyPracticeProps {
   onSaveWordLink?: (from: string, to: string, lang?: string) => void;
   onDeleteWordLink?: (from: string, lang?: string) => void;
   lessons?: Lesson[];
+  languageFlags?: Record<string, string>;
 }
 
 export type PracticeSortOption =
@@ -63,7 +64,8 @@ export default function VocabularyPractice({
   onDeleteVocab,
   onSaveWordLink,
   onDeleteWordLink,
-  lessons
+  lessons,
+  languageFlags
 }: VocabularyPracticeProps) {
   const { t, i18n } = useTranslation();
   const { showToast } = useToast();
@@ -1409,7 +1411,7 @@ export default function VocabularyPractice({
               }}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-100/80 hover:bg-zinc-200/80 dark:bg-zinc-800/80 dark:hover:bg-zinc-700/80 rounded-xl text-xs font-bold text-zinc-800 dark:text-zinc-200 transition-all cursor-pointer border border-zinc-200/50 dark:border-zinc-700/50"
             >
-              <span className="text-sm leading-none">{getLanguageFlagEmoji(selectedPracticeLang)}</span>
+              {renderCircularFlag(getLanguageFlagEmoji(selectedPracticeLang, languageFlags))}
               <span>{selectedPracticeLang}</span>
               <ChevronDown className={`w-3.5 h-3.5 text-zinc-400 transition-transform ${isLangMenuOpen ? "rotate-180" : ""}`} />
             </button>
@@ -1435,7 +1437,7 @@ export default function VocabularyPractice({
                         : "text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
                     }`}
                   >
-                    <span className="text-sm">{getLanguageFlagEmoji(lang)}</span>
+                    {renderCircularFlag(getLanguageFlagEmoji(lang, languageFlags))}
                     <span>{lang}</span>
                   </button>
                 ))}

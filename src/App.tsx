@@ -607,6 +607,24 @@ export default function App() {
       
       // Clear in-memory listening buffer
       listeningBufferRef.current = 0;
+
+      // Persist deleted IDs and signatures locally so a page reload or stale cache can never resurrect them
+      try {
+        const rawDeleted = localStorage.getItem("vocab_clone_deleted_history_ids");
+        const existingDeleted: string[] = rawDeleted ? JSON.parse(rawDeleted) : [];
+        const tombstoneSet = new Set<string>(Array.isArray(existingDeleted) ? existingDeleted : []);
+        for (const delId of deletedIds) {
+          if (delId) tombstoneSet.add(delId);
+          const oldEntry = historyRef.current.find((item) => item.id === delId);
+          if (oldEntry) {
+            const day = typeof oldEntry.timestamp === "string" && oldEntry.timestamp.length >= 10 ? oldEntry.timestamp.slice(0, 10) : "";
+            if ((oldEntry as any).youtubeId && day) tombstoneSet.add(`yt::${(oldEntry as any).youtubeId}::${day}`);
+            const tKey = (oldEntry.customTitle || oldEntry.lessonTitle || "").trim().toLowerCase();
+            if (tKey && day) tombstoneSet.add(`title::${tKey}::${day}`);
+          }
+        }
+        safeLocalStorageSetItem("vocab_clone_deleted_history_ids", JSON.stringify(Array.from(tombstoneSet).slice(-5000)));
+      } catch (_) {}
     }
 
     const deduped = dedupeHistory(newHistory).filter(h =>
@@ -1945,11 +1963,61 @@ export default function App() {
                 return true;
               });
 
-            // Smart history merge: combine local in-memory history with server history.
-            // dedupeHistory automatically preserves completed status and the maximum duration.
-            const activeDeletedIds = new Set(pendingSyncDeletedHistoryRef.current);
-            const cleanHistory = dedupeHistory([...historyRef.current, ...cleanServerHistory])
-              .filter((h) => !activeDeletedIds.has(h.id));
+            // Collect server tombstones + local tombstones + pending deletes
+            const activeDeletedIds = new Set<string>(pendingSyncDeletedHistoryRef.current);
+            if (Array.isArray(d.deletedHistoryIds)) {
+              for (const tId of d.deletedHistoryIds) {
+                if (typeof tId === "string" && tId) activeDeletedIds.add(tId);
+              }
+            }
+            try {
+              const rawLocalDel = localStorage.getItem("vocab_clone_deleted_history_ids");
+              if (rawLocalDel) {
+                const parsedLocalDel = JSON.parse(rawLocalDel);
+                if (Array.isArray(parsedLocalDel)) {
+                  for (const tId of parsedLocalDel) {
+                    if (typeof tId === "string" && tId) activeDeletedIds.add(tId);
+                  }
+                }
+              }
+              safeLocalStorageSetItem(
+                "vocab_clone_deleted_history_ids",
+                JSON.stringify(Array.from(activeDeletedIds).slice(-5000))
+              );
+            } catch (_) {}
+
+            const isTombstoned = (h: HistoryEntry) => {
+              if (!h || !h.id) return true;
+              if (activeDeletedIds.has(h.id)) return true;
+              const hDay = typeof h.timestamp === "string" && h.timestamp.length >= 10 ? h.timestamp.slice(0, 10) : "";
+              if ((h as any).youtubeId && hDay && activeDeletedIds.has(`yt::${(h as any).youtubeId}::${hDay}`)) return true;
+              const hTitleKey = (h.customTitle || h.lessonTitle || "").trim().toLowerCase();
+              if (hTitleKey && hDay && activeDeletedIds.has(`title::${hTitleKey}::${hDay}`)) return true;
+              return false;
+            };
+
+            const serverIdSet = new Set(cleanServerHistory.map((h: HistoryEntry) => h.id));
+            const prevSyncedMap = lastSyncedHistoryMapRef.current;
+
+            // Keep local entries ONLY if they are genuinely new/unsynced since the last server load
+            // (If an entry was previously synced with the server and is now missing from cleanServerHistory,
+            // it was deleted on another device/tab and must NOT be resurrected!)
+            const unsyncedLocalHistory = historyRef.current.filter((h) => {
+              if (isTombstoned(h)) return false;
+              if (serverIdSet.has(h.id)) return true;
+              if (prevSyncedMap && prevSyncedMap.has(h.id)) {
+                return false;
+              }
+              // On initial boot (prevSyncedMap is null), only preserve very recent local sessions (< 2 minutes old)
+              const tMs = new Date(h.timestamp || 0).getTime();
+              if (!prevSyncedMap && (!isNaN(tMs) && Date.now() - tMs > 120000)) {
+                return false;
+              }
+              return true;
+            });
+
+            const cleanHistory = dedupeHistory([...unsyncedLocalHistory, ...cleanServerHistory])
+              .filter((h) => !isTombstoned(h));
             setHistory(cleanHistory);
             historyRef.current = cleanHistory;
             lastSyncedHistoryMapRef.current = new Map(cleanHistory.map((h) => [h.id, h]));
@@ -2246,9 +2314,26 @@ export default function App() {
       const fullVocab: Record<string, VocabItem> = vocabRef.current || currentVocab || {};
       const fullLinks: Record<string, string> = wordLinksRef.current || currentLinks || {};
       const fullLessons: Lesson[] = currentLessons || [];
+      let localDeletedHistorySet = new Set<string>(finalDeletedHistoryIds as string[]);
+      try {
+        const rawLocalDel = localStorage.getItem("vocab_clone_deleted_history_ids");
+        if (rawLocalDel) {
+          const parsed = JSON.parse(rawLocalDel);
+          if (Array.isArray(parsed)) {
+            for (const tId of parsed) {
+              if (typeof tId === "string" && tId) localDeletedHistorySet.add(tId);
+            }
+          }
+        }
+      } catch (_) {}
+
       const safeHistory = (currentHistory || []).filter(h => {
         if (!h || !h.id) return false;
-        if (finalDeletedHistoryIds.includes(h.id)) return false;
+        if (localDeletedHistorySet.has(h.id)) return false;
+        const hDay = typeof h.timestamp === "string" && h.timestamp.length >= 10 ? h.timestamp.slice(0, 10) : "";
+        if ((h as any).youtubeId && hDay && localDeletedHistorySet.has(`yt::${(h as any).youtubeId}::${hDay}`)) return false;
+        const hTitleKey = (h.customTitle || h.lessonTitle || "").trim().toLowerCase();
+        if (hTitleKey && hDay && localDeletedHistorySet.has(`title::${hTitleKey}::${hDay}`)) return false;
         if ((h.durationSeconds || 0) <= 0) return false;
         return true;
       });
@@ -4567,6 +4652,7 @@ export default function App() {
               onSaveWordLink={handleSaveWordLink}
               onDeleteWordLink={handleDeleteWordLink}
               lessons={lessons}
+              languageFlags={languageFlags}
             />
           </div>
         ) : activeTab === "history" ? (

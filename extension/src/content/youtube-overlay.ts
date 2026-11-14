@@ -6,6 +6,11 @@ import { t } from '../services/i18n';
 import { isWordToken, cleanWordForLookup, isNumericOrSymbolToken, generateUUID, normalizeContraction, normalizeApostrophes } from '../services/text-utils';
 import { ignoreListManager, getLocalizedIgnoreBadge, type AutoIgnoreResult } from '../services/ignore';
 import { initYouTubeTracker, extractPrimaryYouTubeChannel } from './youtube-tracker';
+import {
+  PronunciationRecorderSession,
+  PronunciationEvaluation,
+  revokeLastRecordedAudio,
+} from '../../../src/utils/pronunciationService';
 
 export { generateUUID, extractPrimaryYouTubeChannel };
 
@@ -419,17 +424,24 @@ export const LANGUAGE_DIALECTS: Record<string, DialectInfo[]> = {
 export function normalizeLangCode(lang?: string): string {
   if (!lang) return 'en';
   const l = lang.trim().toLowerCase();
-  if (l.startsWith('es') || l.includes('span')) return 'es';
-  if (l.startsWith('en') || l.includes('engl')) return 'en';
-  if (l.startsWith('fr') || l.includes('fren')) return 'fr';
-  if (l.startsWith('de') || l.includes('germ')) return 'de';
-  if (l.startsWith('ru') || l.includes('russ')) return 'ru';
-  if (l.startsWith('it') || l.includes('ital')) return 'it';
-  if (l.startsWith('pt') || l.includes('port')) return 'pt';
-  if (l.startsWith('zh') || l.includes('chin')) return 'zh';
-  if (l.startsWith('ja') || l.includes('jap')) return 'ja';
-  if (l.startsWith('ko') || l.includes('kore')) return 'ko';
-  return l.slice(0, 2);
+  const base = l.split(/[-_]/)[0];
+  if (base === 'es' || l.includes('span')) return 'es';
+  if (base === 'en' || l.includes('engl')) return 'en';
+  if (base === 'fr' || l.includes('fren')) return 'fr';
+  if (base === 'de' || l.includes('germ')) return 'de';
+  if (base === 'ru' || l.includes('russ')) return 'ru';
+  if (base === 'uk' || l.includes('ukra')) return 'uk';
+  if (base === 'it' || l.includes('ital')) return 'it';
+  if (base === 'pt' || l.includes('port')) return 'pt';
+  if (base === 'zh' || l.includes('chin')) return 'zh';
+  if (base === 'ja' || l.includes('jap')) return 'ja';
+  if (base === 'ko' || l.includes('kore')) return 'ko';
+  if (base === 'ar' || l.includes('arab')) return 'ar';
+  if (base === 'tr' || l.includes('turk')) return 'tr';
+  if (base === 'pl' || l.includes('poli')) return 'pl';
+  if (base === 'nl' || l.includes('dutc')) return 'nl';
+  if (base === 'sv' || l.includes('swed')) return 'sv';
+  return base.slice(0, 2);
 }
 
 /**
@@ -551,6 +563,12 @@ class YouTubeLecturaOverlay {
   private transcriptPanel: HTMLElement | null = null;
   private playerFloatingToggle: HTMLElement | null = null;
   private transcriptSearchQuery: string = '';
+
+  // Pronunciation Check & Sentence Shadowing (🎙️ [M])
+  private activePronSession: PronunciationRecorderSession | null = null;
+  private shadowingBox: HTMLElement | null = null;
+  private isSentenceShadowingActive: boolean = false;
+  private activeRecordingAudioPlayer: HTMLAudioElement | null = null;
 
   // AbortController for in-flight translation requests
   private translationAbortController: AbortController | null = null;
@@ -1148,6 +1166,13 @@ class YouTubeLecturaOverlay {
     this.popupCard.style.display = 'none';
     this.shadowRoot.appendChild(this.popupCard);
 
+    // Sentence Shadowing Bar (Floating Pronunciation Panel above Subtitles)
+    this.shadowingBox = document.createElement('div');
+    this.shadowingBox.className = 'lectura-shadowing-bar';
+    this.shadowingBox.style.display = 'none';
+    this.shadowingBox.addEventListener('click', (e) => e.stopPropagation());
+    this.shadowRoot.appendChild(this.shadowingBox);
+
     // Toast Container
     this.toastElement = document.createElement('div');
     this.toastElement.className = 'lectura-toast';
@@ -1165,6 +1190,7 @@ class YouTubeLecturaOverlay {
       else if (action === 'next') this.jumpToNextCue();
       else if (action === 'autopause') this.toggleAutoPauseAfterSubtitle();
       else if (action === 'blur') this.cycleSubtitleBlurMode();
+      else if (action === 'shadowing') this.triggerSentenceShadowing();
       else if (action === 'transcript') this.toggleTranscriptSidebar();
     });
     this.shadowRoot.appendChild(this.playerFloatingToggle);
@@ -2506,6 +2532,82 @@ class YouTubeLecturaOverlay {
         color: #0f172a !important;
       }
 
+      /* Live Search Dropdown for Base Root */
+      .root-input-action-row,
+      .lectura-lemma-input-row {
+        position: relative !important;
+      }
+      .lectura-root-live-dropdown {
+        position: absolute;
+        top: calc(100% + 4px);
+        left: 0;
+        right: 0;
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        box-shadow: 0 10px 25px rgba(15, 23, 42, 0.16);
+        max-height: 175px;
+        overflow-y: auto;
+        z-index: 2147483647;
+        padding: 4px 0;
+      }
+      .lectura-word-card:not(.calm_light):not(.theme-calm-light) .lectura-root-live-dropdown {
+        background: #0f172a;
+        border-color: rgba(148, 163, 184, 0.25);
+        box-shadow: 0 12px 28px rgba(0, 0, 0, 0.55);
+      }
+      .lectura-root-dropdown-item {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 7px 12px;
+        background: transparent;
+        border: none;
+        border-bottom: 1px solid #f1f5f9;
+        cursor: pointer;
+        text-align: left;
+        font-family: inherit;
+        font-size: 12.5px;
+        transition: background 0.12s ease;
+        box-sizing: border-box;
+      }
+      .lectura-root-dropdown-item:last-child {
+        border-bottom: none;
+      }
+      .lectura-word-card:not(.calm_light):not(.theme-calm-light) .lectura-root-dropdown-item {
+        border-bottom-color: rgba(255, 255, 255, 0.06);
+      }
+      .lectura-root-dropdown-item:hover,
+      .lectura-root-dropdown-item.active {
+        background: #f1f5f9;
+      }
+      .lectura-word-card:not(.calm_light):not(.theme-calm-light) .lectura-root-dropdown-item:hover,
+      .lectura-word-card:not(.calm_light):not(.theme-calm-light) .lectura-root-dropdown-item.active {
+        background: rgba(56, 189, 248, 0.15);
+      }
+      .lectura-root-item-word {
+        font-weight: 700;
+        color: #1e293b;
+        text-transform: capitalize;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .lectura-word-card:not(.calm_light):not(.theme-calm-light) .lectura-root-item-word {
+        color: #f8fafc;
+      }
+      .lectura-root-item-meta {
+        font-size: 11px;
+        color: #94a3b8;
+        max-width: 165px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        flex-shrink: 0;
+      }
+
       /* Нижняя панель статусов */
       .theme-calm-light .status-capsule-bar {
         background: #ffffff !important;
@@ -2705,6 +2807,157 @@ class YouTubeLecturaOverlay {
         border-color: #60a5fa;
         color: #ffffff;
         transform: scale(1.08);
+      }
+      .lectura-card-mic {
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 6px;
+        color: #f8fafc;
+        font-size: 13px;
+        cursor: pointer;
+        padding: 3px 6px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.15s ease;
+        line-height: 1;
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+      }
+      .lectura-card-mic:hover {
+        background: #10b981;
+        border-color: #34d399;
+        color: #ffffff;
+        transform: scale(1.08);
+      }
+      .lectura-card-mic.listening,
+      .glass-btn-sound.lectura-card-mic.listening {
+        background: #ef4444 !important;
+        border-color: #f87171 !important;
+        color: #ffffff !important;
+        animation: pronMicPulse 1.1s infinite ease-in-out;
+        box-shadow: 0 0 12px rgba(239, 68, 68, 0.65) !important;
+      }
+      @keyframes pronMicPulse {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.12); }
+      }
+      .lectura-card-pron-box {
+        margin: 8px 0 10px 0;
+        padding: 10px 12px;
+        border-radius: 12px;
+        background: rgba(15, 23, 42, 0.78);
+        border: 1px solid rgba(148, 163, 184, 0.22);
+        color: #f8fafc;
+        font-size: 12.5px;
+      }
+      .theme-calm-light .lectura-card-pron-box,
+      .calm_light .lectura-card-pron-box {
+        background: #f8fafc !important;
+        border: 1px solid #e2e8f0 !important;
+        color: #0f172a !important;
+      }
+      .lectura-shadowing-bar {
+        position: absolute;
+        left: 50%;
+        bottom: 135px;
+        transform: translateX(-50%);
+        min-width: 340px;
+        max-width: min(640px, 90vw);
+        background: rgba(15, 23, 42, 0.94);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border: 1px solid rgba(56, 189, 248, 0.35);
+        border-radius: 16px;
+        padding: 12px 16px;
+        color: #f8fafc;
+        z-index: 2147483646;
+        pointer-events: auto;
+        box-shadow: 0 14px 36px rgba(0, 0, 0, 0.55);
+        animation: cardFadeIn 0.15s ease-out;
+      }
+      .pron-word-chip {
+        display: inline-flex;
+        align-items: center;
+        padding: 2px 7px;
+        border-radius: 6px;
+        font-weight: 700;
+        font-size: 13px;
+        margin: 2px;
+        border: 1px solid transparent;
+      }
+      .pron-word-chip.good {
+        background: rgba(16, 185, 129, 0.2);
+        color: #34d399;
+        border-color: rgba(16, 185, 129, 0.45);
+      }
+      .pron-word-chip.fair {
+        background: rgba(245, 158, 11, 0.2);
+        color: #fbbf24;
+        border-color: rgba(245, 158, 11, 0.45);
+      }
+      .pron-word-chip.poor {
+        background: rgba(244, 63, 94, 0.2);
+        color: #fb7185;
+        border-color: rgba(244, 63, 94, 0.45);
+        text-decoration: underline wavy rgba(244, 63, 94, 0.75);
+      }
+      .theme-calm-light .pron-word-chip.good {
+        background: #d1fae5 !important;
+        color: #047857 !important;
+        border-color: #6ee7b7 !important;
+      }
+      .theme-calm-light .pron-word-chip.fair {
+        background: #fef3c7 !important;
+        color: #b45309 !important;
+        border-color: #fcd34d !important;
+      }
+      .theme-calm-light .pron-word-chip.poor {
+        background: #ffe4e6 !important;
+        color: #be123c !important;
+        border-color: #fda4af !important;
+      }
+      .pron-act-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 4px 10px;
+        border-radius: 8px;
+        font-size: 11.5px;
+        font-weight: 700;
+        cursor: pointer;
+        border: 1px solid rgba(148, 163, 184, 0.3);
+        background: rgba(30, 41, 59, 0.85);
+        color: #e2e8f0;
+        transition: all 0.15s ease;
+      }
+      .pron-act-btn:hover {
+        background: rgba(51, 65, 85, 0.95);
+        border-color: #38bdf8;
+        color: #ffffff;
+      }
+      .theme-calm-light .pron-act-btn {
+        background: #ffffff !important;
+        border-color: #cbd5e1 !important;
+        color: #1e293b !important;
+      }
+      .theme-calm-light .pron-act-btn:hover {
+        background: #f1f5f9 !important;
+        border-color: #0284c7 !important;
+        color: #0284c7 !important;
+      }
+      .lectura-token.pron-good {
+        color: #4ade80 !important;
+        text-shadow: 0 0 8px rgba(74, 222, 128, 0.45);
+        border-bottom: 2px solid #22c55e !important;
+      }
+      .lectura-token.pron-fair {
+        color: #facc15 !important;
+        border-bottom: 2px solid #eab308 !important;
+      }
+      .lectura-token.pron-poor {
+        color: #fb7185 !important;
+        border-bottom: 2px wavy #f43f5e !important;
       }
       .lectura-card-dialect-badge {
         background: rgba(255, 255, 255, 0.06);
@@ -3667,6 +3920,136 @@ class YouTubeLecturaOverlay {
 
   private videoSessionLanguage: string = '';
 
+  private getCurrentVideoTitleText(): string {
+    const titleEl = document.querySelector<HTMLElement>(
+      'h1.ytd-watch-metadata yt-formatted-string, #title h1 yt-formatted-string, h1.title.ytd-video-primary-info-renderer'
+    );
+    return (titleEl?.textContent || document.title || '').replace(/\s*-\s*YouTube$/i, '').trim();
+  }
+
+  private isScriptIncompatibleWithVideoTitle(langCode: string): boolean {
+    if (!langCode) return false;
+    const code = normalizeLangCode(langCode);
+    const title = this.getCurrentVideoTitleText();
+    if (!title || !/[a-zA-Z]{2,}/.test(title)) return false;
+
+    if (code === 'ar' || code === 'fa' || code === 'ur') {
+      return !/[\u0600-\u06FF]/.test(title);
+    }
+    if (code === 'bn') {
+      return !/[\u0980-\u09FF]/.test(title);
+    }
+    if (code === 'hi' || code === 'mr' || code === 'ne') {
+      return !/[\u0900-\u097F]/.test(title);
+    }
+    if (code === 'th') {
+      return !/[\u0E00-\u0E7F]/.test(title);
+    }
+    if (code === 'he' || code === 'iw') {
+      return !/[\u0590-\u05FF]/.test(title);
+    }
+    if (code === 'el') {
+      return !/[\u0370-\u03FF]/.test(title);
+    }
+    return false;
+  }
+
+  private selectBestTrackFromList(tracks: any[], preferredLang?: string): any {
+    if (!Array.isArray(tracks) || tracks.length === 0) return null;
+    const pref = preferredLang ? normalizeLangCode(preferredLang) : normalizeLangCode(this.settings?.targetLanguage || '');
+
+    // 1. Explicit spoken original track identified by MAIN world bridge (from audioTracks / defaultAudioLanguage / adaptiveFormats)
+    const explicitSpokenTracks = tracks.filter((t: any) => t.isSpokenOriginal && !this.isScriptIncompatibleWithVideoTitle(t.languageCode));
+    if (explicitSpokenTracks.length > 0) {
+      return explicitSpokenTracks.find((t: any) => t.kind !== 'asr') || explicitSpokenTracks[0];
+    }
+
+    // 2. If a language has BOTH a manual track (kind !== 'asr') AND an ASR track (kind === 'asr'),
+    // while auto-dubbed languages only have ASR, that paired language is the creator's original language!
+    const manualLangs = new Set(
+      tracks.filter((t: any) => t.kind !== 'asr').map((t: any) => normalizeLangCode(t.languageCode)).filter(Boolean)
+    );
+    const asrLangs = new Set(
+      tracks.filter((t: any) => t.kind === 'asr').map((t: any) => normalizeLangCode(t.languageCode)).filter(Boolean)
+    );
+    const pairedLangs = Array.from(manualLangs).filter((l) => asrLangs.has(l) && !this.isScriptIncompatibleWithVideoTitle(l));
+    if (pairedLangs.length === 1) {
+      const spokenLang = pairedLangs[0];
+      return (
+        tracks.find((t: any) => normalizeLangCode(t.languageCode) === spokenLang && t.kind !== 'asr') ||
+        tracks.find((t: any) => normalizeLangCode(t.languageCode) === spokenLang)
+      );
+    }
+
+    // 3. If there is only ONE manual (non-ASR) track, that is the creator's uploaded original language
+    const validManualLangs = Array.from(manualLangs).filter((l) => !this.isScriptIncompatibleWithVideoTitle(l));
+    if (validManualLangs.length === 1) {
+      const spokenLang = validManualLangs[0];
+      return tracks.find((t: any) => normalizeLangCode(t.languageCode) === spokenLang && t.kind !== 'asr') || tracks[0];
+    }
+
+    // 4. If there is only ONE ASR track total (not multi-language auto-captions), it is the video's spoken language
+    const validAsrLangs = Array.from(asrLangs).filter((l) => !this.isScriptIncompatibleWithVideoTitle(l));
+    if (validAsrLangs.length === 1) {
+      const spokenLang = validAsrLangs[0];
+      return (
+        tracks.find((t: any) => normalizeLangCode(t.languageCode) === spokenLang && t.kind !== 'asr') ||
+        tracks.find((t: any) => normalizeLangCode(t.languageCode) === spokenLang)
+      );
+    }
+
+    // 5. Match user's preferred study language (if compatible with title script)
+    if (pref && !this.isScriptIncompatibleWithVideoTitle(pref)) {
+      const matchingPref = tracks.filter((t: any) => normalizeLangCode(t.languageCode) === pref);
+      if (matchingPref.length > 0) {
+        return matchingPref.find((t: any) => t.kind !== 'asr') || matchingPref[0];
+      }
+    }
+
+    // 6. Fallback to explicit default track
+    const defaultTrack = tracks.find((t: any) => t.isDefault && !this.isScriptIncompatibleWithVideoTitle(t.languageCode));
+    if (defaultTrack) return defaultTrack;
+
+    // 7. Fallback to major languages before falling back to alphabetical tracks[0] (which is often 'ar' Arabic or 'sq' Albanian)
+    for (const code of ['en', 'es', 'ru', 'uk', 'de', 'fr', 'pt', 'it', 'ja', 'zh', 'ko']) {
+      if (this.isScriptIncompatibleWithVideoTitle(code)) continue;
+      const match =
+        tracks.find((t: any) => normalizeLangCode(t.languageCode) === code && t.kind !== 'asr') ||
+        tracks.find((t: any) => normalizeLangCode(t.languageCode) === code);
+      if (match) return match;
+    }
+
+    return tracks.find((t: any) => !this.isScriptIncompatibleWithVideoTitle(t.languageCode)) || tracks[0];
+  }
+
+  private isUnwantedAutoTranslatedTrack(trackLangCode: string): boolean {
+    if (!trackLangCode) return false;
+    const clean = normalizeLangCode(trackLangCode);
+    const target = normalizeLangCode(this.settings?.targetLanguage || '');
+    if (clean === target && !this.isScriptIncompatibleWithVideoTitle(clean)) return false;
+
+    // Immediately reject tracks whose script is incompatible with a Latin-titled video (e.g. Arabic 'ar', Bangla 'bn')
+    if (this.isScriptIncompatibleWithVideoTitle(clean)) {
+      return true;
+    }
+
+    // Reject common alphabetical index-0 auto-dub outliers ('sq' Albanian, 'af' Afrikaans, 'am' Amharic, 'az' Azerbaijani) unless explicitly studied
+    if (['sq', 'af', 'am', 'az', 'eu', 'bs', 'hy', 'ka', 'kk', 'km', 'ky', 'lo', 'mk', 'mn', 'my', 'si', 'sw', 'tg', 'uz', 'zu'].includes(clean) && clean !== target) {
+      return true;
+    }
+
+    const bridged = (window as any).__LECTURA_BRIDGED_TRACKS__;
+    if (bridged && Array.isArray(bridged.tracks) && bridged.tracks.length > 1) {
+      const bestClean = bridged.bestLang
+        ? normalizeLangCode(bridged.bestLang)
+        : normalizeLangCode(this.selectBestTrackFromList(bridged.tracks)?.languageCode || '');
+      if (bestClean && bestClean !== clean) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   /**
    * Injects lightweight network interceptor into the main YouTube page context
    * to catch /api/timedtext network requests and extract exact ISO language code ('es', 'fr', 'en', 'pt', etc.)
@@ -3676,6 +4059,17 @@ class YouTubeLecturaOverlay {
     window.addEventListener('LECTURA_TIMEDTEXT_LANG', (event: any) => {
       const lang = event?.detail?.lang;
       if (lang) {
+        if (this.isUnwantedAutoTranslatedTrack(lang)) {
+          const bridged = (window as any).__LECTURA_BRIDGED_TRACKS__;
+          const best = bridged?.tracks ? this.selectBestTrackFromList(bridged.tracks) : null;
+          const preferredLang = best?.languageCode || bridged?.bestLang || this.settings?.targetLanguage || 'en';
+          window.dispatchEvent(
+            new CustomEvent('LECTURA_REQUEST_CAPTIONS', {
+              detail: { forceEnableCC: true, preferredLang },
+            })
+          );
+          return;
+        }
         const clean = normalizeLangCode(lang);
         console.log('🎯 [Lectura] Active Subtitle Language detected from Network Event:', clean);
         if (clean && clean !== this.videoSessionLanguage) {
@@ -3691,6 +4085,10 @@ class YouTubeLecturaOverlay {
     // 1b. Listen for pre-segmented TimedText full track payload from MAIN world
     window.addEventListener('LECTURA_TIMEDTEXT_DATA', (event: any) => {
       const { lang, text } = event?.detail || {};
+      if (lang && this.isUnwantedAutoTranslatedTrack(lang)) {
+        console.log(`⚠️ [Lectura Subtitles] Ignoring unwanted auto-selected track (${lang}) in favor of original spoken language.`);
+        return;
+      }
       if (text && typeof text === 'string') {
         try {
           let sentences: CleanSentence[] = [];
@@ -3703,10 +4101,25 @@ class YouTubeLecturaOverlay {
           } else if (trimmed.startsWith('<')) {
             sentences = parseXmlIntoCleanSentences(trimmed);
           }
+          // Reject payload if text itself is predominantly Arabic script when session language is not Arabic
+          const sampleText = sentences.slice(0, 5).map((s) => s.text).join(' ');
+          if (sampleText && /[\u0600-\u06FF]{3,}/.test(sampleText) && normalizeLangCode(this.settings?.targetLanguage || '') !== 'ar') {
+            if (this.isScriptIncompatibleWithVideoTitle('ar')) {
+              return;
+            }
+          }
           if (sentences.length > 0) {
             this.preparsedSentences = sentences;
             this.currentSentenceIndex = -1;
             this.autoPausedSentenceIndex = -1;
+            if (lang && !this.isUnwantedAutoTranslatedTrack(lang)) {
+              const clean = normalizeLangCode(lang);
+              (window as any).__LECTURA_ACTIVE_LANG__ = clean;
+              (window as any).__LECTURA_YT_TRACK_LANG__ = clean;
+              this.videoSessionLanguage = clean;
+              this.currentDetectedLanguage = getLanguageDisplayName(clean);
+              this.syncVocabulary(clean);
+            }
             console.log(`✅ [Lectura Subtitles] Loaded ${sentences.length} sentences from intercepted TimedText (${lang || 'active track'})`);
             this.updateFloatingPillAndTranscript();
             if (this.videoElement) {
@@ -3724,26 +4137,26 @@ class YouTubeLecturaOverlay {
 
     // 1c. Listen for captionTracks metadata bridged from MAIN world player
     window.addEventListener('LECTURA_CAPTION_TRACKS', (event: any) => {
-      const { videoId, tracks } = event?.detail || {};
+      const { videoId, tracks, spokenLang, bestLang } = event?.detail || {};
       if (Array.isArray(tracks) && tracks.length > 0) {
-        (window as any).__LECTURA_BRIDGED_TRACKS__ = { videoId, tracks };
+        (window as any).__LECTURA_BRIDGED_TRACKS__ = { videoId, tracks, spokenLang, bestLang };
 
-        // Identify best language: user's target language if present, else the video's default/first track
-        const target = normalizeLangCode(this.settings?.targetLanguage || '');
-        const matched =
-          tracks.find((t: any) => normalizeLangCode(t.languageCode) === target) ||
-          tracks.find((t: any) => t.isDefault) ||
-          tracks[0];
+        const matched = this.selectBestTrackFromList(tracks);
+        const resolvedCode = normalizeLangCode(matched?.languageCode || bestLang || spokenLang || '');
 
-        if (matched && matched.languageCode) {
-          const detectedLang = normalizeLangCode(matched.languageCode);
-          if (detectedLang && detectedLang !== this.videoSessionLanguage) {
-            console.log('🎯 [Lectura] Active Subtitle Language resolved from captionTracks:', detectedLang);
-            (window as any).__LECTURA_ACTIVE_LANG__ = detectedLang;
-            (window as any).__LECTURA_YT_TRACK_LANG__ = detectedLang;
-            this.videoSessionLanguage = detectedLang;
-            this.currentDetectedLanguage = getLanguageDisplayName(detectedLang);
-            this.syncVocabulary(detectedLang);
+        if (resolvedCode) {
+          const wasWrongLang = this.videoSessionLanguage && this.videoSessionLanguage !== resolvedCode;
+          if (resolvedCode !== this.videoSessionLanguage) {
+            console.log('🎯 [Lectura] Active Subtitle Language resolved from captionTracks:', resolvedCode);
+            (window as any).__LECTURA_ACTIVE_LANG__ = resolvedCode;
+            (window as any).__LECTURA_YT_TRACK_LANG__ = resolvedCode;
+            this.videoSessionLanguage = resolvedCode;
+            this.currentDetectedLanguage = getLanguageDisplayName(resolvedCode);
+            this.syncVocabulary(resolvedCode);
+          }
+          if (wasWrongLang) {
+            this.preparsedSentences = [];
+            this.currentSentenceIndex = -1;
           }
         }
 
@@ -3765,7 +4178,11 @@ class YouTubeLecturaOverlay {
             if (entry.name && entry.name.includes('/api/timedtext')) {
               try {
                 const parsed = new URL(entry.name);
-                const langParam = parsed.searchParams.get('lang') || parsed.searchParams.get('tlang');
+                const tlangParam = parsed.searchParams.get('tlang');
+                const langParam = tlangParam || parsed.searchParams.get('lang');
+                if (langParam && this.isUnwantedAutoTranslatedTrack(langParam)) {
+                  continue;
+                }
                 if (langParam) {
                   const clean = normalizeLangCode(langParam);
                   if (clean && clean !== this.videoSessionLanguage) {
@@ -3793,105 +4210,9 @@ class YouTubeLecturaOverlay {
       }
     } catch (_) {}
 
-    // 3. Inject lightweight fetch/XHR hook into page context
+    // 3. Trigger caption inspection via youtube-bridge.ts (already running in MAIN world)
     try {
-      const scriptId = 'lectura-network-interceptor';
-      if (!document.getElementById(scriptId)) {
-        const script = document.createElement('script');
-        script.id = scriptId;
-        script.textContent = `
-          (function() {
-            function notifyTimedText(lang, url, text) {
-              if (lang) {
-                try {
-                  window.dispatchEvent(new CustomEvent('LECTURA_TIMEDTEXT_LANG', { detail: { lang: lang } }));
-                } catch (_) {}
-              }
-              if (text) {
-                try {
-                  window.dispatchEvent(new CustomEvent('LECTURA_TIMEDTEXT_DATA', { detail: { lang: lang, url: url, text: text } }));
-                } catch (_) {}
-              }
-            }
-
-            // Intercept fetch
-            const origFetch = window.fetch;
-            window.fetch = async function(...args) {
-              const url = typeof args[0] === 'string' ? args[0] : (args[0] && args[0].url);
-              const res = await origFetch.apply(this, args);
-              if (url && typeof url === 'string' && url.includes('/api/timedtext')) {
-                try {
-                  const parsed = new URL(url, window.location.origin);
-                  const lang = parsed.searchParams.get('lang') || parsed.searchParams.get('tlang');
-                  const clone = res.clone();
-                  clone.text().then(text => {
-                    notifyTimedText(lang, url, text);
-                  }).catch(() => notifyTimedText(lang, url, null));
-                } catch (_) {}
-              }
-              return res;
-            };
-
-            // Intercept XMLHttpRequest
-            const origOpen = XMLHttpRequest.prototype.open;
-            XMLHttpRequest.prototype.open = function(method, url) {
-              if (url && typeof url === 'string' && url.includes('/api/timedtext')) {
-                try {
-                  const parsed = new URL(url, window.location.origin);
-                  const lang = parsed.searchParams.get('lang') || parsed.searchParams.get('tlang');
-                  this.addEventListener('load', function() {
-                    notifyTimedText(lang, url, this.responseText);
-                  });
-                } catch (_) {}
-              }
-              return origOpen.apply(this, arguments);
-            };
-            // Bridge captionTracks from MAIN world (movie_player.getPlayerResponse / ytInitialPlayerResponse)
-            function bridgePlayerCaptionTracks(forceEnableCC) {
-              try {
-                const player = document.getElementById('movie_player');
-                const pResp = (player && typeof player.getPlayerResponse === 'function' && player.getPlayerResponse()) || window.ytInitialPlayerResponse;
-                const videoId = pResp && pResp.videoDetails && pResp.videoDetails.videoId;
-                const tracks = pResp && pResp.captions && pResp.captions.playerCaptionsTracklistRenderer && pResp.captions.playerCaptionsTracklistRenderer.captionTracks;
-                if (Array.isArray(tracks) && tracks.length > 0) {
-                  window.dispatchEvent(new CustomEvent('LECTURA_CAPTION_TRACKS', {
-                    detail: {
-                      videoId: videoId || '',
-                      tracks: tracks.map(t => ({
-                        baseUrl: t.baseUrl,
-                        languageCode: t.languageCode,
-                        kind: t.kind
-                      }))
-                    }
-                  }));
-                }
-                // Ensure YouTube's caption module is active so signed timedtext requests fire if needed
-                if (forceEnableCC && player) {
-                  if (typeof player.loadModule === 'function') {
-                    player.loadModule('captions');
-                  }
-                  const ccBtn = document.querySelector('.ytp-subtitles-button');
-                  if (ccBtn && ccBtn.getAttribute('aria-pressed') === 'false') {
-                    ccBtn.click();
-                  }
-                }
-              } catch (_) {}
-            }
-
-            window.addEventListener('LECTURA_REQUEST_CAPTIONS', function(ev) {
-              const forceCC = ev && ev.detail && ev.detail.forceEnableCC;
-              bridgePlayerCaptionTracks(forceCC);
-            });
-            window.addEventListener('yt-navigate-finish', function() {
-              setTimeout(function() { bridgePlayerCaptionTracks(false); }, 300);
-            });
-            setTimeout(function() { bridgePlayerCaptionTracks(false); }, 150);
-          })();
-        `;
-        (document.head || document.documentElement).appendChild(script);
-      } else {
-        window.dispatchEvent(new CustomEvent('LECTURA_REQUEST_CAPTIONS', { detail: { forceEnableCC: false } }));
-      }
+      window.dispatchEvent(new CustomEvent('LECTURA_REQUEST_CAPTIONS', { detail: { forceEnableCC: false } }));
     } catch (_) {}
   }
 
@@ -3901,20 +4222,19 @@ class YouTubeLecturaOverlay {
   private resolveVideoLanguage(): string {
     if ((window as any).__LECTURA_ACTIVE_LANG__) {
       const code = (window as any).__LECTURA_ACTIVE_LANG__;
-      this.videoSessionLanguage = code;
-      this.currentDetectedLanguage = getLanguageDisplayName(code);
-      return code;
+      if (!this.isUnwantedAutoTranslatedTrack(code)) {
+        this.videoSessionLanguage = code;
+        this.currentDetectedLanguage = getLanguageDisplayName(code);
+        return code;
+      }
+      (window as any).__LECTURA_ACTIVE_LANG__ = null;
     }
 
     // 1. Bridged tracks from MAIN world
     try {
       const bridged = (window as any).__LECTURA_BRIDGED_TRACKS__;
       if (bridged && Array.isArray(bridged.tracks) && bridged.tracks.length > 0) {
-        const target = normalizeLangCode(this.settings?.targetLanguage || '');
-        const matched =
-          bridged.tracks.find((t: any) => normalizeLangCode(t.languageCode) === target) ||
-          bridged.tracks.find((t: any) => t.isDefault) ||
-          bridged.tracks[0];
+        const matched = this.selectBestTrackFromList(bridged.tracks);
         if (matched?.languageCode) {
           const code = normalizeLangCode(matched.languageCode);
           (window as any).__LECTURA_ACTIVE_LANG__ = code;
@@ -3926,27 +4246,7 @@ class YouTubeLecturaOverlay {
       }
     } catch (_) {}
 
-    // 2. Resource Timing entries check
-    try {
-      const entries = performance.getEntriesByType('resource') as PerformanceResourceTiming[];
-      for (let i = entries.length - 1; i >= Math.max(0, entries.length - 15); i--) {
-        const entry = entries[i];
-        if (entry.name && entry.name.includes('/api/timedtext')) {
-          const parsed = new URL(entry.name);
-          const langParam = parsed.searchParams.get('lang') || parsed.searchParams.get('tlang');
-          if (langParam) {
-            const code = normalizeLangCode(langParam);
-            (window as any).__LECTURA_ACTIVE_LANG__ = code;
-            (window as any).__LECTURA_YT_TRACK_LANG__ = code;
-            this.videoSessionLanguage = code;
-            this.currentDetectedLanguage = getLanguageDisplayName(code);
-            return code;
-          }
-        }
-      }
-    } catch (_) {}
-
-    // 3. Scan document.scripts for captionTracks
+    // 2. Scan document.scripts for captionTracks
     try {
       for (const s of Array.from(document.scripts)) {
         const text = s.textContent || '';
@@ -3955,11 +4255,7 @@ class YouTubeLecturaOverlay {
         if (m && m[1]) {
           const tracks = JSON.parse(m[1]);
           if (Array.isArray(tracks) && tracks.length > 0) {
-            const target = normalizeLangCode(this.settings?.targetLanguage || '');
-            const matched =
-              tracks.find((t: any) => normalizeLangCode(t.languageCode) === target) ||
-              tracks.find((t: any) => t.isDefault) ||
-              tracks[0];
+            const matched = this.selectBestTrackFromList(tracks);
             if (matched?.languageCode) {
               const code = normalizeLangCode(matched.languageCode);
               (window as any).__LECTURA_ACTIVE_LANG__ = code;
@@ -3968,6 +4264,26 @@ class YouTubeLecturaOverlay {
               this.currentDetectedLanguage = getLanguageDisplayName(code);
               return code;
             }
+          }
+        }
+      }
+    } catch (_) {}
+
+    // 3. Resource Timing entries check
+    try {
+      const entries = performance.getEntriesByType('resource') as PerformanceResourceTiming[];
+      for (let i = entries.length - 1; i >= Math.max(0, entries.length - 15); i--) {
+        const entry = entries[i];
+        if (entry.name && entry.name.includes('/api/timedtext')) {
+          const parsed = new URL(entry.name);
+          const langParam = parsed.searchParams.get('tlang') || parsed.searchParams.get('lang');
+          if (langParam && !this.isUnwantedAutoTranslatedTrack(langParam)) {
+            const code = normalizeLangCode(langParam);
+            (window as any).__LECTURA_ACTIVE_LANG__ = code;
+            (window as any).__LECTURA_YT_TRACK_LANG__ = code;
+            this.videoSessionLanguage = code;
+            this.currentDetectedLanguage = getLanguageDisplayName(code);
+            return code;
           }
         }
       }
@@ -4033,6 +4349,14 @@ class YouTubeLecturaOverlay {
           for (let i = entries.length - 1; i >= 0; i--) {
             const entry = entries[i];
             if (entry.name && entry.name.includes('/api/timedtext') && entry.name.includes(`v=${videoId}`)) {
+              try {
+                const parsed = new URL(entry.name);
+                const tlang = parsed.searchParams.get('tlang');
+                const entryLang = tlang || parsed.searchParams.get('lang') || '';
+                if (entryLang && this.isUnwantedAutoTranslatedTrack(entryLang)) {
+                  continue;
+                }
+              } catch (_) {}
               return entry.name;
             }
           }
@@ -4060,6 +4384,10 @@ class YouTubeLecturaOverlay {
           }
 
           if (sentences.length > 0) {
+            const sampleText = sentences.slice(0, 5).map((s) => s.text).join(' ');
+            if (sampleText && /[\u0600-\u06FF]{3,}/.test(sampleText) && lang !== 'ar' && this.isScriptIncompatibleWithVideoTitle('ar')) {
+              return false;
+            }
             this.preparsedSentences = sentences;
             this.currentSentenceIndex = -1;
             this.autoPausedSentenceIndex = -1;
@@ -4079,13 +4407,13 @@ class YouTubeLecturaOverlay {
       // 1. Priority 1: Signed /api/timedtext URL from performance ResourceTiming (includes YouTube POT token!)
       let signedUrl = findSignedTimedTextUrl();
       if (!signedUrl) {
-        // Ensure YouTube's CC button is enabled directly from content script DOM or MAIN world
+        // Ask MAIN world bridge to enable captions using the best spoken/target language track
         try {
-          window.dispatchEvent(new CustomEvent('LECTURA_REQUEST_CAPTIONS', { detail: { forceEnableCC: true } }));
-          const ccBtn = document.querySelector<HTMLElement>('.ytp-subtitles-button');
-          if (ccBtn && ccBtn.getAttribute('aria-pressed') === 'false') {
-            ccBtn.click();
-          }
+          window.dispatchEvent(
+            new CustomEvent('LECTURA_REQUEST_CAPTIONS', {
+              detail: { forceEnableCC: true, preferredLang: lang },
+            })
+          );
           await new Promise((r) => setTimeout(r, 450));
           signedUrl = findSignedTimedTextUrl();
         } catch (_) {}
@@ -4101,10 +4429,7 @@ class YouTubeLecturaOverlay {
       try {
         const bridged = (window as any).__LECTURA_BRIDGED_TRACKS__;
         if (bridged && Array.isArray(bridged.tracks) && bridged.tracks.length > 0 && (!bridged.videoId || bridged.videoId === videoId)) {
-          const matchingTrack =
-            bridged.tracks.find((t: any) => normalizeLangCode(t.languageCode) === lang) ||
-            bridged.tracks.find((t: any) => t.isDefault) ||
-            bridged.tracks[0];
+          const matchingTrack = this.selectBestTrackFromList(bridged.tracks, lang);
           if (matchingTrack?.baseUrl) candidateUrls.push(matchingTrack.baseUrl);
         }
       } catch (_) {}
@@ -4117,10 +4442,7 @@ class YouTubeLecturaOverlay {
           if (m && m[1]) {
             const tracks = JSON.parse(m[1]);
             if (Array.isArray(tracks) && tracks.length > 0) {
-              const matchingTrack =
-                tracks.find((t: any) => normalizeLangCode(t.languageCode) === lang) ||
-                tracks.find((t: any) => t.isDefault) ||
-                tracks[0];
+              const matchingTrack = this.selectBestTrackFromList(tracks, lang);
               if (matchingTrack?.baseUrl) candidateUrls.push(matchingTrack.baseUrl);
             }
           }
@@ -4187,7 +4509,11 @@ class YouTubeLecturaOverlay {
       // Fallback: ask MAIN world to activate YouTube's caption module once
       if ((!this.preparsedSentences || this.preparsedSentences.length === 0) && this.subtitleLoadAttempts <= 1) {
         try {
-          window.dispatchEvent(new CustomEvent('LECTURA_REQUEST_CAPTIONS', { detail: { forceEnableCC: true } }));
+          window.dispatchEvent(
+            new CustomEvent('LECTURA_REQUEST_CAPTIONS', {
+              detail: { forceEnableCC: true, preferredLang: lang },
+            })
+          );
         } catch (_) {}
       }
 
@@ -5013,6 +5339,7 @@ class YouTubeLecturaOverlay {
         <span class="lectura-top-pill-divider"></span>
         <button type="button" class="lectura-sub-tool-btn ${this.autoPauseAfterSubtitle ? 'active' : ''}" data-action="autopause" title="${t('auto_pause_sub_hint', uiLang)}">⏸ Q</button>
         <button type="button" class="lectura-sub-tool-btn ${this.subtitleBlurMode !== 'off' ? 'active' : ''}" data-action="blur" title="Blur Mode [H]">👁 H</button>
+        <button type="button" class="lectura-sub-tool-btn ${this.isSentenceShadowingActive ? 'active' : ''}" data-action="shadowing" title="${uiLang === 'ru' ? 'Проверка произношения фразы (Shadowing) [M]' : 'Sentence Shadowing / Pronunciation Check [M]'}">🎙️ M</button>
         <span class="lectura-top-pill-divider"></span>
         <button type="button" class="lectura-sub-tool-btn ${this.showTranscriptSidebar ? 'active' : ''}" data-action="transcript" title="${t('transcript_panel', uiLang)} [T]">
           <span>📜 ${t('transcript_panel', uiLang)}</span>
@@ -5448,6 +5775,8 @@ class YouTubeLecturaOverlay {
    */
   private closeWordCard() {
     this.hideHoverTooltip();
+    this.stopActivePronunciationSession();
+    revokeLastRecordedAudio();
     if (this.translationAbortController) {
       this.translationAbortController.abort();
       this.translationAbortController = null;
@@ -6180,8 +6509,10 @@ class YouTubeLecturaOverlay {
             ` : ''}
             <span class="glass-lang-tag lectura-card-dialect-badge" title="Dialect: ${currentDialect.name} (${currentDialect.code})">${activeLang} | ${dialectLabel}</span>
             <button type="button" class="glass-btn-sound lectura-card-tts" title="Audio">🔊</button>
+            <button type="button" class="glass-btn-sound lectura-card-mic" title="${uiLang === 'ru' ? 'Проверить произношение [M]' : 'Check pronunciation [M]'}">🎙️</button>
           </div>
         </div>
+        <div class="lectura-card-pron-box" style="display: none;"></div>
 
         <!-- Tab Pane: Meaning -->
         <div class="glass-tab-pane active" data-pane="meaning">
@@ -6291,11 +6622,12 @@ class YouTubeLecturaOverlay {
               <span>🌱</span> Base Root & Morphology:
             </div>
 
-            <div class="root-input-action-row" style="display: flex; gap: 8px; margin-bottom: 10px;">
+            <div class="root-input-action-row" style="display: flex; gap: 8px; margin-bottom: 10px; position: relative;">
               <div class="root-input-box" style="flex: 1; display: flex; align-items: center; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 4px 8px; gap: 6px;">
                 <span>🔗</span>
                 <input 
                   type="text" 
+                  autocomplete="off"
                   placeholder="${t('base_root_placeholder', uiLang)}" 
                   class="calm-root-field lectura-lemma-input"
                   id="root-input-field"
@@ -6304,6 +6636,7 @@ class YouTubeLecturaOverlay {
                 />
               </div>
               <button type="button" class="btn-link calm-btn-link lectura-lemma-btn-link" id="btn-link-root" style="background: #2563eb; color: #ffffff; border: none; border-radius: 8px; padding: 6px 14px; font-size: 12.5px; font-weight: 600; cursor: pointer;">${t('btn_link', uiLang)}</button>
+              <div class="lectura-root-live-dropdown" style="display: none;"></div>
             </div>
 
             <!-- Suggestions -->
@@ -6363,8 +6696,10 @@ class YouTubeLecturaOverlay {
                 ` : ''}
                 <button type="button" class="lectura-dialect-pill lectura-card-dialect-badge" title="Dialect: ${currentDialect.name} (${currentDialect.code})">${activeLang} | ${dialectLabel}</button>
                 <button type="button" class="lectura-card-tts" title="Pronounce">🔊</button>
+                <button type="button" class="lectura-card-mic" title="${uiLang === 'ru' ? 'Проверить произношение [M]' : 'Check pronunciation [M]'}">🎙️</button>
               </div>
             </div>
+            <div class="lectura-card-pron-box" style="display: none;"></div>
 
             <!-- Primary Translation & Secondary Synonyms -->
             <div class="lectura-card-translation">${initialTranslationHtml}</div>
@@ -6492,10 +6827,11 @@ class YouTubeLecturaOverlay {
             </div>
 
             <div class="lectura-extended-tools-card">
-              <div class="lectura-lemma-input-row">
+              <div class="lectura-lemma-input-row" style="position: relative;">
                 <span class="lectura-lemma-icon">🔗</span>
-                <input type="text" class="lectura-lemma-input" placeholder="Base root (e.g. ${suggestedLemmas[0] || 'root'})..." value="${existingParent}" />
+                <input type="text" autocomplete="off" class="lectura-lemma-input" placeholder="Base root (e.g. ${suggestedLemmas[0] || 'root'})..." value="${existingParent}" />
                 <button type="button" class="lectura-lemma-btn-link" title="Link to base root">Link</button>
+                <div class="lectura-root-live-dropdown" style="display: none;"></div>
               </div>
               <div class="lectura-card-dict-bar" style="margin-top: 0; padding-top: 0; border-top: none;">
                 <a href="${dictUrls.cambridge}" target="_blank" rel="noopener noreferrer" class="lectura-dict-btn" title="Open Cambridge">Cambridge ↗</a>
@@ -6511,6 +6847,7 @@ class YouTubeLecturaOverlay {
           <div class="lectura-card-header-left">
             <span class="lectura-card-word">${word}</span>
             <button class="lectura-card-tts" title="Pronounce">🔊</button>
+            <button type="button" class="lectura-card-mic" title="${uiLang === 'ru' ? 'Проверить произношение [M]' : 'Check pronunciation [M]'}">🎙️</button>
             <button type="button" class="lectura-card-ai-btn" title="Explain with AI" style="background: linear-gradient(135deg, #0284c7, #4f46e5); color: white; border: none; border-radius: 4px; padding: 2px 7px; font-size: 11px; font-weight: 700; cursor: pointer; margin-left: 4px;">✨ AI</button>
             <button class="lectura-card-dialect-badge" title="Dialect: ${currentDialect.name} (${currentDialect.code})">${dialectLabel}</button>
             ${wordInfo.isAutoIgnored ? `
@@ -6525,6 +6862,7 @@ class YouTubeLecturaOverlay {
           </div>
           <button class="lectura-card-close" title="Close (Esc)">✕</button>
         </div>
+        <div class="lectura-card-pron-box" style="display: none;"></div>
         <div class="lectura-card-translation">${initialTranslationHtml}</div>
 
         <!-- Compact AI Breakdown Drawer -->
@@ -6566,10 +6904,11 @@ class YouTubeLecturaOverlay {
 
         <!-- Lemma Selection / Linking Section -->
         <div class="lectura-card-lemma-section">
-          <div class="lectura-lemma-input-row">
+          <div class="lectura-lemma-input-row" style="position: relative;">
             <span class="lectura-lemma-icon">🔗</span>
-            <input type="text" class="lectura-lemma-input" placeholder="Base root (e.g. ${suggestedLemmas[0] || 'root'})..." value="${existingParent}" />
+            <input type="text" autocomplete="off" class="lectura-lemma-input" placeholder="Base root (e.g. ${suggestedLemmas[0] || 'root'})..." value="${existingParent}" />
             <button type="button" class="lectura-lemma-btn-link" title="Link to base root">Link</button>
+            <div class="lectura-root-live-dropdown" style="display: none;"></div>
           </div>
           ${
             suggestedLemmas.length > 0
@@ -6764,7 +7103,7 @@ class YouTubeLecturaOverlay {
       }
     };
 
-    // Suggestion chips click: fill input and focus
+    // Suggestion chips click: fill input and link immediately (same as Lectura)
     this.popupCard.querySelectorAll('.lectura-suggestion-chip, .lectura-lemma-chip, .suggestion-chip').forEach((chip) => {
       chip.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -6773,8 +7112,8 @@ class YouTubeLecturaOverlay {
           const input = this.popupCard?.querySelector('.lectura-lemma-input, #root-input-field, .glass-root-input, .calm-root-field') as HTMLInputElement | null;
           if (input) {
             input.value = targetLemma;
-            input.focus();
           }
+          linkLemma(targetLemma);
         }
       });
     });
@@ -6788,21 +7127,22 @@ class YouTubeLecturaOverlay {
       });
     });
 
-    // Enter key in lemma input
-    const lemmaInput = this.popupCard.querySelector('.lectura-lemma-input, #root-input-field, .glass-root-input, .calm-root-field') as HTMLInputElement | null;
-    lemmaInput?.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        e.stopPropagation();
-        if (lemmaInput.value) linkLemma(lemmaInput.value);
-      }
-    });
+    // Live Search Dropdown & Keyboard Navigation for Base Root input (same database & logic as Lectura)
+    this.setupBaseRootLiveSearch(word, langCode, linkLemma);
 
     // TTS button next to word
-    this.popupCard.querySelectorAll('.lectura-card-tts, .glass-btn-sound').forEach((btn) => {
+    this.popupCard.querySelectorAll('.lectura-card-tts').forEach((btn) => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
         this.playTts(word, currentDialect.code);
+      });
+    });
+
+    // Microphone Pronunciation Check button next to word (🎙️)
+    this.popupCard.querySelectorAll('.lectura-card-mic').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.startCardPronunciationCheck(word, currentDialect.code);
       });
     });
 
@@ -6841,10 +7181,12 @@ class YouTubeLecturaOverlay {
 
     // Save custom meaning when pressing Enter in meaning input
     const meaningInputEl = this.popupCard.querySelector<HTMLInputElement>('.calm-meaning-input, .lectura-meaning-input');
-    meaningInputEl?.addEventListener('keydown', async (e) => {
+    const handleMeaningKey = async (rawEv: Event) => {
+      const e = (rawEv as CustomEvent).detail || (rawEv as KeyboardEvent);
       if (e.key === 'Enter') {
-        e.preventDefault();
-        e.stopPropagation();
+        e.preventDefault?.();
+        e.stopPropagation?.();
+        if (!meaningInputEl) return;
         const customTrans = meaningInputEl.value.trim();
         const activeStatusBtn = this.popupCard?.querySelector('[data-status].active');
         const statusToSave =
@@ -6852,8 +7194,14 @@ class YouTubeLecturaOverlay {
           (wordInfo.status && wordInfo.status !== 'new' && wordInfo.status !== '0' ? wordInfo.status : '1');
         await this.saveWordToLectura(word, customTrans, statusToSave, contextSentence);
         this.closeWordCard();
+      } else if (e.key === 'Escape') {
+        e.preventDefault?.();
+        e.stopPropagation?.();
+        meaningInputEl?.blur();
       }
-    });
+    };
+    meaningInputEl?.addEventListener('keydown', handleMeaningKey);
+    meaningInputEl?.addEventListener('lectura-input-keydown', handleMeaningKey);
 
     console.log('[Lectura Debug] Word clicked:', word);
 
@@ -7258,11 +7606,15 @@ class YouTubeLecturaOverlay {
         this.loadFullVideoSubtitles(this.currentVideoId);
       }
 
-      // Ensure YouTube CC button is activated so YouTube streams signed captions
+      // Ensure YouTube CC button is activated via bridge so YouTube selects the proper spoken track instead of alphabetical index 0
       const ccBtn = document.querySelector<HTMLElement>('.ytp-subtitles-button');
       if (ccBtn && ccBtn.getAttribute('aria-pressed') === 'false') {
         try {
-          ccBtn.click();
+          window.dispatchEvent(
+            new CustomEvent('LECTURA_REQUEST_CAPTIONS', {
+              detail: { forceEnableCC: true, preferredLang: this.getEffectiveLang() },
+            })
+          );
         } catch (_) {}
       }
 
@@ -7271,6 +7623,17 @@ class YouTubeLecturaOverlay {
         .map((el) => el.textContent?.trim() || '')
         .filter(Boolean);
       const domText = deduplicateSubtitleSegments(domSegments);
+      const effectiveLang = this.getEffectiveLang();
+      if (domText && /[\u0600-\u06FF]{2,}/.test(domText) && effectiveLang !== 'ar' && this.isScriptIncompatibleWithVideoTitle('ar')) {
+        try {
+          window.dispatchEvent(
+            new CustomEvent('LECTURA_REQUEST_CAPTIONS', {
+              detail: { forceEnableCC: true, preferredLang: effectiveLang },
+            })
+          );
+        } catch (_) {}
+        return;
+      }
       if (domText && domText !== this.currentSubtitleText) {
         this.currentSubtitleText = domText;
         this.renderSubtitleTokens(domText);
@@ -7398,9 +7761,276 @@ class YouTubeLecturaOverlay {
     }
   }
 
+  private getRootSearchCandidates(langCode: string): Array<{ lower: string; original: string; translation: string }> {
+    const list = new Map<string, string>(); // lower -> display word
+    const translations = new Map<string, string>(); // lower -> translation / status badge
+    const normLang = normalizeLangCode(langCode);
+
+    const vocab = this.cachedWordsByLang[normLang] || {};
+    for (const [key, item] of Object.entries(vocab)) {
+      if (!key || !item) continue;
+      const cleanKey = key.replace(/^[a-zA-Z]+_/, '').trim();
+      if (!cleanKey) continue;
+      const wLower = cleanKey.toLowerCase();
+      list.set(wLower, cleanKey);
+
+      const rawTrans = (item.translation || '').trim();
+      if (rawTrans) {
+        const firstLine = rawTrans.split('\n')[0].trim();
+        translations.set(wLower, firstLine);
+      } else if (item.status === 'ignored' || item.status === '0') {
+        translations.set(wLower, '[Ignored]');
+      } else if (item.status === 'known') {
+        translations.set(wLower, '[Known]');
+      }
+    }
+
+    const wordLinks = this.cachedWordLinksByLang[normLang] || {};
+    for (const [child, parent] of Object.entries(wordLinks)) {
+      const cleanChild = (child || '').replace(/^[a-zA-Z]+_/, '').trim();
+      const cleanParent = (parent || '').replace(/^[a-zA-Z]+_/, '').trim();
+      if (cleanChild && !list.has(cleanChild.toLowerCase())) {
+        list.set(cleanChild.toLowerCase(), cleanChild);
+      }
+      if (cleanParent && !list.has(cleanParent.toLowerCase())) {
+        list.set(cleanParent.toLowerCase(), cleanParent);
+      }
+    }
+
+    // Also include tokens from the current video subtitle sentences (same as lessonText in WordExplainer.tsx)
+    const tokenRegex = /[\p{L}\p{M}'’]+/gu;
+    if (this.preparsedSentences && this.preparsedSentences.length > 0) {
+      for (const s of this.preparsedSentences) {
+        if (!s?.text) continue;
+        const tokens = s.text.match(tokenRegex) || [];
+        for (const tok of tokens) {
+          const clean = tok.trim();
+          if (clean.length > 1) {
+            const low = clean.toLowerCase();
+            if (!list.has(low)) {
+              list.set(low, clean);
+            }
+          }
+        }
+      }
+    }
+
+    return Array.from(list.entries()).map(([lower, original]) => ({
+      lower,
+      original,
+      translation: translations.get(lower) || '',
+    }));
+  }
+
+  private setupBaseRootLiveSearch(
+    word: string,
+    langCode: string,
+    linkLemma: (parentLemma: string) => Promise<void>
+  ) {
+    if (!this.popupCard) return;
+    const lemmaInput = this.popupCard.querySelector<HTMLInputElement>(
+      '.lectura-lemma-input, #root-input-field, .glass-root-input, .calm-root-field'
+    );
+    const dropdown = this.popupCard.querySelector<HTMLElement>('.lectura-root-live-dropdown');
+    if (!lemmaInput || !dropdown) return;
+
+    const candidates = this.getRootSearchCandidates(langCode);
+    const currentWordLower = word.trim().toLowerCase();
+    let filteredResults: Array<{ lower: string; original: string; translation: string }> = [];
+    let highlightedIdx = -1;
+
+    const hideDropdown = () => {
+      dropdown.style.display = 'none';
+      dropdown.innerHTML = '';
+      filteredResults = [];
+      highlightedIdx = -1;
+    };
+
+    const renderDropdown = () => {
+      const query = lemmaInput.value.trim().toLowerCase();
+      if (!query) {
+        hideDropdown();
+        return;
+      }
+
+      filteredResults = candidates
+        .filter((c) => c.lower.includes(query) && c.lower !== currentWordLower)
+        .sort((a, b) => {
+          const aStarts = a.lower.startsWith(query);
+          const bStarts = b.lower.startsWith(query);
+          if (aStarts && !bStarts) return -1;
+          if (!aStarts && bStarts) return 1;
+          return a.lower.localeCompare(b.lower, langCode || 'es', { sensitivity: 'base' });
+        })
+        .slice(0, 50);
+
+      if (filteredResults.length === 0) {
+        hideDropdown();
+        return;
+      }
+
+      if (highlightedIdx >= filteredResults.length) {
+        highlightedIdx = 0;
+      }
+
+      dropdown.innerHTML = filteredResults
+        .map(
+          (res, idx) => `
+          <button
+            type="button"
+            class="lectura-root-dropdown-item ${idx === highlightedIdx ? 'active' : ''}"
+            data-root-idx="${idx}"
+            data-root-val="${this.escapeHtml(res.lower)}"
+          >
+            <span class="lectura-root-item-word">${this.escapeHtml(res.original)}</span>
+            ${
+              res.translation
+                ? `<span class="lectura-root-item-meta">${this.escapeHtml(res.translation)}</span>`
+                : ''
+            }
+          </button>
+        `
+        )
+        .join('');
+
+      dropdown.style.display = 'block';
+
+      dropdown.querySelectorAll<HTMLElement>('.lectura-root-dropdown-item').forEach((itemEl) => {
+        itemEl.addEventListener('mousedown', (ev) => {
+          ev.preventDefault();
+          ev.stopPropagation();
+          const val = itemEl.getAttribute('data-root-val') || '';
+          if (val) {
+            lemmaInput.value = val;
+            hideDropdown();
+            linkLemma(val);
+          }
+        });
+      });
+    };
+
+    const updateHighlight = () => {
+      const items = dropdown.querySelectorAll<HTMLElement>('.lectura-root-dropdown-item');
+      items.forEach((el, idx) => {
+        if (idx === highlightedIdx) {
+          el.classList.add('active');
+          el.scrollIntoView({ block: 'nearest' });
+        } else {
+          el.classList.remove('active');
+        }
+      });
+    };
+
+    lemmaInput.addEventListener('input', () => {
+      highlightedIdx = -1;
+      renderDropdown();
+    });
+
+    lemmaInput.addEventListener('focus', () => {
+      if (lemmaInput.value.trim()) {
+        renderDropdown();
+      }
+    });
+
+    lemmaInput.addEventListener('blur', () => {
+      window.setTimeout(() => hideDropdown(), 150);
+    });
+
+    const handleKey = (rawEv: Event) => {
+      const e = (rawEv as CustomEvent).detail || (rawEv as KeyboardEvent);
+      if (e.key === 'ArrowDown') {
+        if (filteredResults.length > 0) {
+          e.preventDefault?.();
+          e.stopPropagation?.();
+          highlightedIdx = (highlightedIdx + 1) % filteredResults.length;
+          updateHighlight();
+        }
+      } else if (e.key === 'ArrowUp') {
+        if (filteredResults.length > 0) {
+          e.preventDefault?.();
+          e.stopPropagation?.();
+          highlightedIdx = highlightedIdx <= 0 ? filteredResults.length - 1 : highlightedIdx - 1;
+          updateHighlight();
+        }
+      } else if (e.key === 'Enter') {
+        e.preventDefault?.();
+        e.stopPropagation?.();
+        if (highlightedIdx >= 0 && highlightedIdx < filteredResults.length) {
+          const chosen = filteredResults[highlightedIdx].lower;
+          lemmaInput.value = chosen;
+          hideDropdown();
+          linkLemma(chosen);
+        } else if (lemmaInput.value.trim()) {
+          hideDropdown();
+          linkLemma(lemmaInput.value.trim());
+        }
+      } else if (e.key === 'Escape') {
+        e.preventDefault?.();
+        e.stopPropagation?.();
+        if (dropdown.style.display !== 'none') {
+          hideDropdown();
+        } else {
+          lemmaInput.blur();
+        }
+      }
+    };
+
+    lemmaInput.addEventListener('keydown', handleKey);
+    lemmaInput.addEventListener('lectura-input-keydown', handleKey);
+  }
+
+  private getFocusedExtensionInput(e: KeyboardEvent): HTMLElement | null {
+    const path = e.composedPath ? e.composedPath() : [];
+    for (const node of path) {
+      if (node && node instanceof HTMLElement) {
+        if (
+          (['INPUT', 'TEXTAREA', 'SELECT'].includes(node.tagName) || node.isContentEditable) &&
+          ((this.shadowRoot && this.shadowRoot.contains(node)) ||
+            (this.sidebarShadowRoot && this.sidebarShadowRoot.contains(node)))
+        ) {
+          return node;
+        }
+      }
+    }
+    const activeShadow = this.shadowRoot?.activeElement as HTMLElement | null;
+    if (activeShadow && (['INPUT', 'TEXTAREA', 'SELECT'].includes(activeShadow.tagName) || activeShadow.isContentEditable)) {
+      return activeShadow;
+    }
+    const activeSidebar = this.sidebarShadowRoot?.activeElement as HTMLElement | null;
+    if (activeSidebar && (['INPUT', 'TEXTAREA', 'SELECT'].includes(activeSidebar.tagName) || activeSidebar.isContentEditable)) {
+      return activeSidebar;
+    }
+    return null;
+  }
+
   private setupKeyboardShortcuts() {
+    // Shield all inputs inside our Shadow DOM from YouTube's global/player hotkeys (f, k, m, t, c, i, w, /, space, 0-9)
+    const shieldExtensionInputs = (e: KeyboardEvent) => {
+      const extInput = this.getFocusedExtensionInput(e);
+      if (extInput) {
+        if (e.type === 'keydown') {
+          extInput.dispatchEvent(new CustomEvent('lectura-input-keydown', { detail: e }));
+        }
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+      }
+    };
+
+    window.addEventListener('keypress', shieldExtensionInputs, { capture: true });
+    window.addEventListener('keyup', shieldExtensionInputs, { capture: true });
+
     window.addEventListener('keydown', (e: KeyboardEvent) => {
       if (this.settings?.isEnabled === false || this.settings?.enableYoutubeOverlay === false) {
+        return;
+      }
+
+      // If user is typing inside an extension input (Root search, Meaning input, Transcript search),
+      // dispatch to input handler and completely block YouTube & extension hotkeys!
+      const extInput = this.getFocusedExtensionInput(e);
+      if (extInput) {
+        extInput.dispatchEvent(new CustomEvent('lectura-input-keydown', { detail: e }));
+        e.stopPropagation();
+        e.stopImmediatePropagation();
         return;
       }
 
@@ -7467,6 +8097,13 @@ class YouTubeLecturaOverlay {
           this.closeWordCard();
           return;
         }
+
+        // M -> check pronunciation of the open word/phrase card
+        if (key === 'M') {
+          e.preventDefault();
+          this.startCardPronunciationCheck(this.activeWordData.word, this.getTtsLanguageCode());
+          return;
+        }
       }
 
       if (!this.videoElement || !this.currentVideoId) return;
@@ -7512,6 +8149,11 @@ class YouTubeLecturaOverlay {
         this.toggleTranscriptSidebar();
         return;
       }
+      if (key === 'M') {
+        e.preventDefault();
+        this.triggerSentenceShadowing();
+        return;
+      }
 
       // 4. Navigation hotkeys (A, S, D)
       if (key === 'A') {
@@ -7525,6 +8167,369 @@ class YouTubeLecturaOverlay {
         this.replayCurrentCue();
       }
     }, { capture: true });
+  }
+
+  private stopActivePronunciationSession() {
+    if (this.activePronSession) {
+      this.activePronSession.stop();
+      this.activePronSession = null;
+    }
+    if (this.activeRecordingAudioPlayer) {
+      this.activeRecordingAudioPlayer.pause();
+      this.activeRecordingAudioPlayer = null;
+    }
+    this.isSentenceShadowingActive = false;
+    this.popupCard?.querySelectorAll('.lectura-card-mic').forEach((btn) => btn.classList.remove('listening'));
+    this.updateFloatingPillAndTranscript();
+  }
+
+  private renderPronunciationEvaluationHtml(
+    targetText: string,
+    locale: string,
+    evaluation: PronunciationEvaluation,
+    isShadowingBar: boolean = false
+  ): string {
+    const uiLang = this.settings?.interfaceLanguage || 'en';
+    const isRu = uiLang === 'ru';
+    const score = evaluation.overallScore;
+    const scoreColor = score >= 80 ? '#10b981' : score >= 50 ? '#f59e0b' : '#f43f5e';
+    const badgeLabel =
+      score >= 85
+        ? isRu ? 'Отлично! 🎉' : 'Excellent! 🎉'
+        : score >= 60
+          ? isRu ? 'Хорошо 👍' : 'Good 👍'
+          : isRu ? 'Попробуйте ещё раз 🎯' : 'Try again 🎯';
+
+    const chipsHtml = evaluation.words
+      .map((w) => {
+        const icon = w.status === 'good' ? '🟢' : w.status === 'fair' ? '🟡' : '🔴';
+        const tip = w.spokenWord
+          ? `${ isRu ? 'Вы сказали' : 'You said' }: "${this.escapeHtml(w.spokenWord)}" (${w.similarity}%)`
+          : isRu ? 'Пропущено' : 'Missed';
+        return `<span class="pron-word-chip ${w.status}" title="${tip}">${icon} ${this.escapeHtml(w.word)}</span>`;
+      })
+      .join('');
+
+    const myVoiceBtn = evaluation.audioBlobUrl
+      ? `<button type="button" class="pron-act-btn" data-pron-act="play-my">▶️ ${isRu ? 'Моя запись' : 'My Voice'}</button>`
+      : '';
+
+    return `
+      <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 14px; font-weight: 800; color: ${scoreColor};">${score}%</span>
+          <span style="font-size: 12px; font-weight: 700;">${badgeLabel}</span>
+        </div>
+        <button type="button" class="pron-act-btn" data-pron-act="close" style="padding: 2px 7px; font-size: 11px;">✕</button>
+      </div>
+      <div style="display: flex; flex-wrap: wrap; align-items: center; margin-bottom: 6px;">
+        ${chipsHtml}
+      </div>
+      ${
+        evaluation.transcript
+          ? `<div style="font-size: 11px; opacity: 0.78; margin-bottom: 8px;">🎙️ ${isRu ? 'Распознано' : 'Heard'}: «<span style="font-style: italic;">${this.escapeHtml(evaluation.transcript)}</span>»</div>`
+          : ''
+      }
+      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 6px;">
+        ${myVoiceBtn}
+        <button type="button" class="pron-act-btn" data-pron-act="play-native">🔊 ${isRu ? 'Оригинал' : 'Native'}</button>
+        <button type="button" class="pron-act-btn" data-pron-act="retry">🔄 ${isRu ? 'Ещё раз' : 'Retry'}</button>
+        ${
+          isShadowingBar
+            ? `<button type="button" class="pron-act-btn" data-pron-act="resume" style="margin-left: auto; border-color: rgba(16, 185, 129, 0.5); color: #34d399;">▶️ ${isRu ? 'Дальше' : 'Continue'}</button>`
+            : ''
+        }
+      </div>
+    `;
+  }
+
+  private bindPronunciationBoxActions(
+    container: HTMLElement,
+    targetText: string,
+    locale: string,
+    evaluation: PronunciationEvaluation,
+    onRetry: () => void,
+    onClose: () => void
+  ) {
+    container.querySelector('[data-pron-act="play-my"]')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (!evaluation.audioBlobUrl) return;
+      if (this.activeRecordingAudioPlayer) {
+        this.activeRecordingAudioPlayer.pause();
+      }
+      const audio = new Audio(evaluation.audioBlobUrl);
+      this.activeRecordingAudioPlayer = audio;
+      audio.play().catch(() => {});
+    });
+
+    container.querySelector('[data-pron-act="play-native"]')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.playTts(targetText, locale);
+    });
+
+    container.querySelector('[data-pron-act="retry"]')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      onRetry();
+    });
+
+    container.querySelector('[data-pron-act="close"]')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      onClose();
+    });
+
+    container.querySelector('[data-pron-act="resume"]')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      onClose();
+      if (this.videoElement && this.videoElement.paused) {
+        this.videoElement.play().catch(() => {});
+      }
+    });
+  }
+
+  private startCardPronunciationCheck(word: string, locale: string) {
+    if (!this.popupCard) return;
+    const pronBox = this.popupCard.querySelector<HTMLElement>('.lectura-card-pron-box');
+    const micBtns = this.popupCard.querySelectorAll<HTMLElement>('.lectura-card-mic');
+    if (!pronBox) return;
+
+    // Toggle off if already recording
+    if (this.activePronSession) {
+      this.activePronSession.stop();
+      return;
+    }
+
+    if (this.videoElement && !this.videoElement.paused) {
+      this.videoElement.pause();
+    }
+
+    const uiLang = this.settings?.interfaceLanguage || 'en';
+    const isRu = uiLang === 'ru';
+    const serverBaseUrl = (this.settings?.serverUrl || 'http://localhost:3000').replace(/\/+$/, '');
+
+    micBtns.forEach((b) => b.classList.add('listening'));
+    pronBox.style.display = 'block';
+    pronBox.innerHTML = `
+      <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: #ef4444; box-shadow: 0 0 8px #ef4444;"></span>
+          <span style="font-weight: 700;">🎙️ ${isRu ? 'Говорите:' : 'Speak:'} «${this.escapeHtml(word)}»...</span>
+        </div>
+        <button type="button" class="pron-act-btn" data-pron-act="stop">⏹ ${isRu ? 'Стоп' : 'Stop'}</button>
+      </div>
+      <div class="pron-interim-text" style="font-size: 11.5px; opacity: 0.75; margin-top: 4px; font-style: italic;"></div>
+    `;
+
+    pronBox.querySelector('[data-pron-act="stop"]')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.activePronSession?.stop();
+    });
+
+    const session = new PronunciationRecorderSession(
+      word,
+      locale || this.getEffectiveLang(),
+      {
+        onInterim: (text) => {
+          const el = pronBox.querySelector('.pron-interim-text');
+          if (el) el.textContent = `«${text}»`;
+        },
+        onEvaluating: () => {
+          micBtns.forEach((b) => b.classList.remove('listening'));
+          pronBox.innerHTML = `<div style="font-weight: 600; color: #38bdf8;">⏳ ${isRu ? 'Оцениваем произношение...' : 'Evaluating pronunciation...'}</div>`;
+        },
+        onResult: (evaluation) => {
+          this.activePronSession = null;
+          micBtns.forEach((b) => b.classList.remove('listening'));
+          pronBox.innerHTML = this.renderPronunciationEvaluationHtml(word, locale, evaluation, false);
+          this.bindPronunciationBoxActions(
+            pronBox,
+            word,
+            locale,
+            evaluation,
+            () => this.startCardPronunciationCheck(word, locale),
+            () => {
+              pronBox.style.display = 'none';
+              pronBox.innerHTML = '';
+              revokeLastRecordedAudio();
+            }
+          );
+        },
+        onError: (msg) => {
+          this.activePronSession = null;
+          micBtns.forEach((b) => b.classList.remove('listening'));
+          pronBox.innerHTML = `
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; color: #fb7185;">
+              <span>⚠️ ${this.escapeHtml(msg)}</span>
+              <button type="button" class="pron-act-btn" data-pron-act="retry">🔄 ${isRu ? 'Повторить' : 'Retry'}</button>
+            </div>
+          `;
+          pronBox.querySelector('[data-pron-act="retry"]')?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.startCardPronunciationCheck(word, locale);
+          });
+        },
+      },
+      serverBaseUrl,
+      uiLang
+    );
+
+    this.activePronSession = session;
+    session.start();
+  }
+
+  private highlightSubtitleTokensByEvaluation(evaluation: PronunciationEvaluation) {
+    if (!this.subtitleBox) return;
+    const tokens = Array.from(this.subtitleBox.querySelectorAll<HTMLElement>('.lectura-word-token, .lectura-token'));
+    tokens.forEach((tok, idx) => {
+      tok.classList.remove('pron-good', 'pron-fair', 'pron-poor');
+      const evalWord = evaluation.words[idx];
+      if (evalWord) {
+        tok.classList.add(`pron-${evalWord.status}`);
+      }
+    });
+  }
+
+  private clearSubtitlePronunciationHighlights() {
+    if (!this.subtitleBox) return;
+    this.subtitleBox.querySelectorAll<HTMLElement>('.pron-good, .pron-fair, .pron-poor').forEach((tok) => {
+      tok.classList.remove('pron-good', 'pron-fair', 'pron-poor');
+    });
+  }
+
+  private triggerSentenceShadowing() {
+    if (!this.shadowingBox) return;
+
+    // If currently listening, stop and evaluate immediately
+    if (this.activePronSession) {
+      this.activePronSession.stop();
+      return;
+    }
+
+    const sentenceText =
+      (this.currentSentenceIndex >= 0 && this.preparsedSentences[this.currentSentenceIndex]?.text) ||
+      this.currentSubtitleText ||
+      '';
+    const cleanSentence = sentenceText.replace(/\s+/g, ' ').trim();
+    const uiLang = this.settings?.interfaceLanguage || 'en';
+    const isRu = uiLang === 'ru';
+
+    if (!cleanSentence) {
+      this.showToast(isRu ? 'Нет активной фразы субтитров для проверки произношения' : 'No active subtitle sentence to shadow', 'info');
+      return;
+    }
+
+    // Pause video so the user can shadow the sentence calmly
+    if (this.videoElement && !this.videoElement.paused) {
+      this.videoElement.pause();
+    }
+
+    this.clearSubtitlePronunciationHighlights();
+    this.isSentenceShadowingActive = true;
+    this.updateFloatingPillAndTranscript();
+
+    const locale = this.getTtsLanguageCode();
+    const serverBaseUrl = (this.settings?.serverUrl || 'http://localhost:3000').replace(/\/+$/, '');
+
+    this.shadowingBox.style.display = 'block';
+    this.shadowingBox.innerHTML = `
+      <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #ef4444; box-shadow: 0 0 10px #ef4444;"></span>
+          <span style="font-weight: 700; font-size: 13px;">🎙️ ${isRu ? 'Повторите фразу вслух (Shadowing)...' : 'Repeat the sentence aloud (Shadowing)...'}</span>
+        </div>
+        <div style="display: flex; gap: 6px;">
+          <button type="button" class="pron-act-btn" data-pron-act="stop">⏹ ${isRu ? 'Готово' : 'Done'}</button>
+          <button type="button" class="pron-act-btn" data-pron-act="cancel">✕</button>
+        </div>
+      </div>
+      <div style="margin-top: 6px; font-size: 13px; color: #bae6fd; font-weight: 600;">«${this.escapeHtml(cleanSentence)}»</div>
+      <div class="pron-interim-text" style="font-size: 12px; color: #94a3b8; margin-top: 4px; font-style: italic;"></div>
+    `;
+
+    this.shadowingBox.querySelector('[data-pron-act="stop"]')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.activePronSession?.stop();
+    });
+
+    this.shadowingBox.querySelector('[data-pron-act="cancel"]')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.stopActivePronunciationSession();
+      this.clearSubtitlePronunciationHighlights();
+      if (this.shadowingBox) {
+        this.shadowingBox.style.display = 'none';
+        this.shadowingBox.innerHTML = '';
+      }
+      revokeLastRecordedAudio();
+    });
+
+    const session = new PronunciationRecorderSession(
+      cleanSentence,
+      locale || this.getEffectiveLang(),
+      {
+        onInterim: (text) => {
+          const el = this.shadowingBox?.querySelector('.pron-interim-text');
+          if (el) el.textContent = `🎙️ «${text}»`;
+        },
+        onEvaluating: () => {
+          if (this.shadowingBox) {
+            this.shadowingBox.innerHTML = `<div style="font-weight: 700; color: #38bdf8; padding: 4px 0;">⏳ ${isRu ? 'Анализируем произношение...' : 'Evaluating pronunciation...'}</div>`;
+          }
+        },
+        onResult: (evaluation) => {
+          this.activePronSession = null;
+          this.isSentenceShadowingActive = false;
+          this.updateFloatingPillAndTranscript();
+          this.highlightSubtitleTokensByEvaluation(evaluation);
+          if (!this.shadowingBox) return;
+          this.shadowingBox.innerHTML = this.renderPronunciationEvaluationHtml(cleanSentence, locale, evaluation, true);
+          this.bindPronunciationBoxActions(
+            this.shadowingBox,
+            cleanSentence,
+            locale,
+            evaluation,
+            () => this.triggerSentenceShadowing(),
+            () => {
+              this.clearSubtitlePronunciationHighlights();
+              if (this.shadowingBox) {
+                this.shadowingBox.style.display = 'none';
+                this.shadowingBox.innerHTML = '';
+              }
+              revokeLastRecordedAudio();
+            }
+          );
+        },
+        onError: (msg) => {
+          this.activePronSession = null;
+          this.isSentenceShadowingActive = false;
+          this.updateFloatingPillAndTranscript();
+          if (!this.shadowingBox) return;
+          this.shadowingBox.innerHTML = `
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; color: #fb7185;">
+              <span>⚠️ ${this.escapeHtml(msg)}</span>
+              <div style="display: flex; gap: 6px;">
+                <button type="button" class="pron-act-btn" data-pron-act="retry">🔄 ${isRu ? 'Повторить' : 'Retry'}</button>
+                <button type="button" class="pron-act-btn" data-pron-act="close">✕</button>
+              </div>
+            </div>
+          `;
+          this.shadowingBox.querySelector('[data-pron-act="retry"]')?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.triggerSentenceShadowing();
+          });
+          this.shadowingBox.querySelector('[data-pron-act="close"]')?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (this.shadowingBox) {
+              this.shadowingBox.style.display = 'none';
+              this.shadowingBox.innerHTML = '';
+            }
+          });
+        },
+      },
+      serverBaseUrl,
+      uiLang
+    );
+
+    this.activePronSession = session;
+    session.start();
   }
 
   private jumpToPreviousCue() {

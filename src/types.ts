@@ -190,8 +190,9 @@ export const DEFAULT_TOOLBAR_VISIBILITY: ReaderToolbarVisibility = {
   showAutoPauseToggle: true,
 };
 
-export interface ReaderSettings {
+  export interface ReaderSettings {
   showTimestamps?: boolean;
+  showReaderMicButton?: boolean;
   cjkWordSpacing?: boolean;
   fontSize: "sm" | "base" | "lg" | "xl" | "2xl" | "3xl" | "4xl";
   lineHeight: "normal" | "relaxed" | "loose" | "extra-loose";

@@ -167,9 +167,19 @@ export default function ImportLessonForm({
   const { user: activeUser } = useAuth();
   const { showToast } = useToast();
   // Navigation: standard, youtube, video, podcast, file, url
-  const [activeTab, setActiveTab] = useState<"standard" | "youtube" | "video" | "file" | "url" | "podcast">(
-    editingLesson ? ((editingLesson.localVideoUrl || editingLesson.lessonType === "video") ? "video" : "standard") : (initialWebUrl ? "url" : "file")
-  );
+  const [activeTab, setActiveTab] = useState<"standard" | "youtube" | "video" | "file" | "url" | "podcast">(() => {
+    if (editingLesson) {
+      return (editingLesson.localVideoUrl || editingLesson.lessonType === "video") ? "video" : "standard";
+    }
+    if (initialWebUrl) return "url";
+    try {
+      const savedTab = localStorage.getItem("lectura_last_import_tab") as any;
+      if (savedTab && ["youtube", "video", "podcast", "file", "url", "standard"].includes(savedTab)) {
+        return savedTab;
+      }
+    } catch (_) {}
+    return "youtube";
+  });
 
   const handleWhisperQueueSubmit = async () => {
     const url = youtubeUrlInput.trim();
@@ -718,12 +728,44 @@ export default function ImportLessonForm({
   const [importImages, setImportImages] = useState(true);
   const [pendingImages, setPendingImages] = useState<Record<string, { dataUrl: string; width: string; height: string }>>({});
 
-  const [selectedType, setSelectedType] = useState<string>(
-    editingLesson?.lessonType ||
-    (activeTab === "youtube" ? "youtube" :
-      activeTab === "video" ? "video" :
-      (editingLesson?.audioUrl || editingLesson?.audioBase64 ? "podcast" : "book"))
-  );
+  const getDefaultTypeForTab = (tab: "standard" | "youtube" | "video" | "file" | "url" | "podcast"): string => {
+    switch (tab) {
+      case "youtube":
+        return "youtube";
+      case "video":
+        return lessonTypes.some((t) => t.id === "video") ? "video" : "youtube";
+      case "podcast":
+        return "podcast";
+      case "url":
+        return "article";
+      case "file":
+        return "book";
+      case "standard":
+      default: {
+        try {
+          const savedType = localStorage.getItem("lectura_last_import_source_type");
+          if (savedType && lessonTypes.some((t) => t.id === savedType)) return savedType;
+        } catch (_) {}
+        return "book";
+      }
+    }
+  };
+
+  const [selectedType, setSelectedType] = useState<string>(() => {
+    if (editingLesson?.lessonType) return editingLesson.lessonType;
+    if (editingLesson?.audioUrl || editingLesson?.audioBase64) return "podcast";
+    return getDefaultTypeForTab(activeTab);
+  });
+
+  const handleSelectImportTab = (tab: "standard" | "youtube" | "video" | "file" | "url" | "podcast") => {
+    setActiveTab(tab);
+    setYtError(null);
+    safeLocalStorageSetItem("lectura_last_import_tab", tab);
+    if (!editingLesson) {
+      const nextType = getDefaultTypeForTab(tab);
+      setSelectedType(nextType);
+    }
+  };
 
   const isVideoLesson = Boolean(
     youtubeId ||
@@ -2012,10 +2054,7 @@ export default function ImportLessonForm({
           {/* 1. YouTube */}
           <button
             type="button"
-            onClick={() => {
-              setActiveTab("youtube");
-              setYtError(null);
-            }}
+            onClick={() => handleSelectImportTab("youtube")}
             className={`py-2 text-xs font-bold rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
               activeTab === "youtube"
                 ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-xs"
@@ -2028,10 +2067,7 @@ export default function ImportLessonForm({
           {/* 2. Локальное видео + субтитры */}
           <button
             type="button"
-            onClick={() => {
-              setActiveTab("video");
-              setYtError(null);
-            }}
+            onClick={() => handleSelectImportTab("video")}
             className={`py-2 text-xs font-bold rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
               activeTab === "video"
                 ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-xs"
@@ -2044,10 +2080,7 @@ export default function ImportLessonForm({
           {/* 3. Подкаст */}
           <button
             type="button"
-            onClick={() => {
-              setActiveTab("podcast" as any);
-              setYtError(null);
-            }}
+            onClick={() => handleSelectImportTab("podcast")}
             className={`py-2 text-xs font-bold rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
               activeTab === ("podcast" as any)
                 ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-xs"
@@ -2060,10 +2093,7 @@ export default function ImportLessonForm({
           {/* 4. Книга PDF / EPUB */}
           <button
             type="button"
-            onClick={() => {
-              setActiveTab("file");
-              setYtError(null);
-            }}
+            onClick={() => handleSelectImportTab("file")}
             className={`py-2 text-xs font-bold rounded-lg flex items-center justify-center gap-1 transition-all cursor-pointer ${
               activeTab === "file"
                 ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-xs"
@@ -2076,10 +2106,7 @@ export default function ImportLessonForm({
           {/* 5. Импорт с Сайта */}
           <button
             type="button"
-            onClick={() => {
-              setActiveTab("url");
-              setYtError(null);
-            }}
+            onClick={() => handleSelectImportTab("url")}
             className={`py-2 text-xs font-bold rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
               activeTab === "url"
                 ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-xs"
@@ -2092,10 +2119,7 @@ export default function ImportLessonForm({
           {/* 6. Обычный текст */}
           <button
             type="button"
-            onClick={() => {
-              setActiveTab("standard");
-              setYtError(null);
-            }}
+            onClick={() => handleSelectImportTab("standard")}
             className={`py-2 text-xs font-bold rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
               activeTab === "standard"
                 ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-xs"
@@ -2297,7 +2321,10 @@ export default function ImportLessonForm({
               >
                 <button
                   type="button"
-                  onClick={() => setSelectedType(type.id)}
+                  onClick={() => {
+                    setSelectedType(type.id);
+                    safeLocalStorageSetItem("lectura_last_import_source_type", type.id);
+                  }}
                   className="px-2.5 py-1.5 text-xs font-bold flex items-center gap-1.5 cursor-pointer rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
                 >
                   <IconComponent className="w-3.5 h-3.5" />
@@ -3624,8 +3651,7 @@ export default function ImportLessonForm({
         {/* Channel Preset Notification Banner */}
         {presetAutoAppliedChannel && (
           <div className="p-3 bg-amber-50/90 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 rounded-2xl flex items-center justify-between gap-3 text-xs animate-in fade-in slide-in-from-top-1 duration-150">
-            <div className="flex items-center gap-2 text-amber-800 dark:text-amber-200 min-w-0">
-              <Sparkles className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+            <div className="flex items-center text-amber-800 dark:text-amber-200 min-w-0">
               <span className="truncate">
                 {t('channel_preset.auto_applied_banner', 'Автоматически подставлены настройки для канала «{{name}}»', {
                   name: presetAutoAppliedChannel,

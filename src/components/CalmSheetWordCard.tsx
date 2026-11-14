@@ -11,6 +11,7 @@ import { playGoogleTTS, fetchWordMeaning, fetchSentenceTranslation, normalizePos
 import { getSuggestedLemmas } from "../morphology";
 import { executeAiWithFailover, getOrCreateAiProfiles } from "../services/aiFailoverService";
 import { useWordStore } from "../store/useWordStore";
+import { usePronunciationTrainer, PronunciationMicButton, PronunciationResultPanel } from "./PronunciationChecker";
 
 export interface CalmSheetWordCardProps {
   word: string | null;
@@ -450,6 +451,13 @@ export default function CalmSheetWordCard({
     }
   }, [cleanWord, isPlayingAudio, targetLanguage, settings]);
 
+  const pronTrainer = usePronunciationTrainer({
+    targetText: word ? normalizePossessiveSuffix(word) : "",
+    targetLanguage,
+    settings,
+    onPlayReference: handlePlayTTS,
+  });
+
   // Highlight word in sentence
   const highlightedSentence = useMemo(() => {
     if (!sentence || !word) return sentence || "";
@@ -527,6 +535,92 @@ export default function CalmSheetWordCard({
       setBaseRootInput("");
     }
   };
+
+  // Search candidates & live search dropdown for Base Root (same logic as WordExplainer)
+  const searchCandidates = useMemo(() => {
+    const list = new Map<string, string>();
+    const translations = new Map<string, string>();
+    const activeLangLower = (targetLanguage || "spanish").toLowerCase();
+
+    if (vocab) {
+      Object.entries(vocab).forEach(([key, item]) => {
+        if (item && item.word) {
+          const keyLang = key.includes("_") ? key.substring(0, key.indexOf("_")).toLowerCase() : "";
+          if (keyLang && keyLang !== activeLangLower) return;
+
+          const wLower = item.word.toLowerCase();
+          list.set(wLower, item.word);
+          if (item.translation) {
+            translations.set(wLower, item.translation);
+          } else if (item.status === "ignored") {
+            translations.set(wLower, "[Ignored]");
+          } else if (item.status === "known") {
+            translations.set(wLower, "[Known]");
+          }
+        }
+      });
+    }
+
+    if (wordLinks) {
+      Object.entries(wordLinks).forEach(([child, parent]) => {
+        const childLang = child.includes("_") ? child.substring(0, child.indexOf("_")).toLowerCase() : "";
+        if (childLang && childLang !== activeLangLower) return;
+
+        const cleanChild = child.replace(/^[a-zA-Z]+_/, "");
+        const cleanParent = parent.replace(/^[a-zA-Z]+_/, "");
+        if (cleanChild) list.set(cleanChild.toLowerCase(), cleanChild);
+        if (cleanParent) list.set(cleanParent.toLowerCase(), cleanParent);
+      });
+    }
+
+    const regex = /[\p{L}\p{M}'’]+/gu;
+    if (lessonText) {
+      const tokens = lessonText.match(regex) || [];
+      tokens.forEach((token) => {
+        const clean = token.trim();
+        if (clean.length > 1) {
+          const lower = clean.toLowerCase();
+          if (!list.has(lower)) list.set(lower, clean);
+        }
+      });
+    }
+
+    if (lessons) {
+      lessons.forEach((l) => {
+        if (l && l.text && l.targetLanguage?.toLowerCase() === activeLangLower) {
+          const tokens = l.text.match(regex) || [];
+          tokens.forEach((token) => {
+            const clean = token.trim();
+            if (clean.length > 1) {
+              const lower = clean.toLowerCase();
+              if (!list.has(lower)) list.set(lower, clean);
+            }
+          });
+        }
+      });
+    }
+
+    return Array.from(list.entries()).map(([low, orig]) => ({
+      lower: low,
+      original: orig,
+      translation: translations.get(low) || "",
+    }));
+  }, [vocab, wordLinks, lessonText, lessons, targetLanguage]);
+
+  const liveSearchResults = useMemo(() => {
+    const query = baseRootInput.trim().toLowerCase();
+    if (!query || query === currentLinkedRoot?.toLowerCase()) return [];
+    return searchCandidates
+      .filter((c) => c.lower.includes(query) && c.lower !== cleanWord)
+      .sort((a, b) => {
+        const aStarts = a.lower.startsWith(query);
+        const bStarts = b.lower.startsWith(query);
+        if (aStarts && !bStarts) return -1;
+        if (!aStarts && bStarts) return 1;
+        return a.lower.localeCompare(b.lower, targetLanguage || "es", { sensitivity: "base" });
+      })
+      .slice(0, 50);
+  }, [baseRootInput, searchCandidates, cleanWord, currentLinkedRoot, targetLanguage]);
 
   // External Dictionary URLs
   const dictUrls = useMemo(() => {
@@ -685,8 +779,29 @@ export default function CalmSheetWordCard({
           >
             <Volume2 className={`w-4 h-4 ${isPlayingAudio ? "animate-pulse text-sky-600" : ""}`} />
           </button>
+          {settings?.showReaderMicButton !== false && (
+            <PronunciationMicButton
+              state={pronTrainer.state}
+              onClick={pronTrainer.toggleRecording}
+            />
+          )}
         </div>
       </div>
+
+      {settings?.showReaderMicButton !== false && (
+        <PronunciationResultPanel
+          state={pronTrainer.state}
+          interimText={pronTrainer.interimText}
+          evaluation={pronTrainer.evaluation}
+          errorMsg={pronTrainer.errorMsg}
+          isPlayingMyVoice={pronTrainer.isPlayingMyVoice}
+          onToggleRecording={pronTrainer.toggleRecording}
+          onPlayMyVoice={pronTrainer.playMyVoice}
+          onPlayReference={pronTrainer.playReferenceVoice}
+          onClose={pronTrainer.closePanel}
+          compact
+        />
+      )}
 
       {/* 3. Tab Contents */}
 
@@ -912,11 +1027,12 @@ export default function CalmSheetWordCard({
             </div>
 
             {/* Input + Link action row */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 relative">
               <div className="flex-1 flex items-center bg-white dark:bg-zinc-950 border border-slate-300 dark:border-zinc-700 rounded-lg px-2.5 py-1.5 gap-2 shadow-3xs focus-within:ring-2 focus-within:ring-sky-500/30 focus-within:border-sky-500 transition-all">
                 <span className="text-slate-400 text-xs select-none">🔗</span>
                 <input
                   type="text"
+                  autoComplete="off"
                   placeholder="Base root (e.g. book)..."
                   value={baseRootInput}
                   onChange={(e) => setBaseRootInput(e.target.value)}
@@ -936,6 +1052,28 @@ export default function CalmSheetWordCard({
               >
                 Link
               </button>
+
+              {liveSearchResults.length > 0 && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 rounded-lg shadow-lg z-50 max-h-44 overflow-y-auto divide-y divide-slate-100 dark:divide-zinc-900">
+                  {liveSearchResults.map((res) => (
+                    <button
+                      key={res.lower}
+                      type="button"
+                      onClick={() => handleLinkRoot(res.lower)}
+                      className="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 dark:hover:bg-zinc-900/60 flex justify-between items-center transition-colors cursor-pointer"
+                    >
+                      <span className="font-bold text-slate-800 dark:text-zinc-200 capitalize">
+                        {res.original}
+                      </span>
+                      {res.translation && (
+                        <span className="text-[10px] text-slate-400 dark:text-zinc-500 truncate max-w-[160px] ml-2">
+                          {res.translation}
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Suggestions row */}

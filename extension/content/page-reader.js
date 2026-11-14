@@ -40351,6 +40351,82 @@
         transform: translateY(-1px);
       }
 
+      /* Live Search Dropdown for Base Root */
+      .root-input-action-row,
+      .lectura-lemma-input-row {
+        position: relative !important;
+      }
+      .lectura-root-live-dropdown {
+        position: absolute;
+        top: calc(100% + 4px);
+        left: 0;
+        right: 0;
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        box-shadow: 0 10px 25px rgba(15, 23, 42, 0.16);
+        max-height: 175px;
+        overflow-y: auto;
+        z-index: 2147483647;
+        padding: 4px 0;
+      }
+      .lectura-word-card:not(.calm_light):not(.theme-calm-light) .lectura-root-live-dropdown {
+        background: #0f172a;
+        border-color: rgba(148, 163, 184, 0.25);
+        box-shadow: 0 12px 28px rgba(0, 0, 0, 0.55);
+      }
+      .lectura-root-dropdown-item {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 7px 12px;
+        background: transparent;
+        border: none;
+        border-bottom: 1px solid #f1f5f9;
+        cursor: pointer;
+        text-align: left;
+        font-family: inherit;
+        font-size: 12.5px;
+        transition: background 0.12s ease;
+        box-sizing: border-box;
+      }
+      .lectura-root-dropdown-item:last-child {
+        border-bottom: none;
+      }
+      .lectura-word-card:not(.calm_light):not(.theme-calm-light) .lectura-root-dropdown-item {
+        border-bottom-color: rgba(255, 255, 255, 0.06);
+      }
+      .lectura-root-dropdown-item:hover,
+      .lectura-root-dropdown-item.active {
+        background: #f1f5f9;
+      }
+      .lectura-word-card:not(.calm_light):not(.theme-calm-light) .lectura-root-dropdown-item:hover,
+      .lectura-word-card:not(.calm_light):not(.theme-calm-light) .lectura-root-dropdown-item.active {
+        background: rgba(56, 189, 248, 0.15);
+      }
+      .lectura-root-item-word {
+        font-weight: 700;
+        color: #1e293b;
+        text-transform: capitalize;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .lectura-word-card:not(.calm_light):not(.theme-calm-light) .lectura-root-item-word {
+        color: #f8fafc;
+      }
+      .lectura-root-item-meta {
+        font-size: 11px;
+        color: #94a3b8;
+        max-width: 165px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        flex-shrink: 0;
+      }
+
       /* Stylish Round Status Buttons (1-5, ignore, known) */
       .lectura-card-actions {
         display: flex;
@@ -41281,11 +41357,12 @@
               <span>\u{1F331}</span> Base Root & Morphology:
             </div>
 
-            <div class="root-input-action-row" style="display: flex; gap: 8px; margin-bottom: 10px;">
+            <div class="root-input-action-row" style="display: flex; gap: 8px; margin-bottom: 10px; position: relative;">
               <div class="root-input-box" style="flex: 1; display: flex; align-items: center; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 4px 8px; gap: 6px;">
                 <span>\u{1F517}</span>
                 <input 
                   type="text" 
+                  autocomplete="off"
                   placeholder="Base root (e.g. salir)..." 
                   class="calm-root-field lectura-lemma-input"
                   id="root-input-field"
@@ -41294,6 +41371,7 @@
                 />
               </div>
               <button type="button" class="btn-link calm-btn-link lectura-lemma-btn-link" id="btn-link-root" style="background: #2563eb; color: #ffffff; border: none; border-radius: 8px; padding: 6px 14px; font-size: 12.5px; font-weight: 600; cursor: pointer;">Link</button>
+              <div class="lectura-root-live-dropdown" style="display: none;"></div>
             </div>
 
             <!-- \u0411\u043B\u043E\u043A \u043F\u043E\u0434\u0441\u043A\u0430\u0437\u043E\u043A -->
@@ -41477,10 +41555,11 @@
           </div>
 
           <div class="lectura-extended-tools-card">
-            <div class="lectura-lemma-input-row">
+            <div class="lectura-lemma-input-row" style="position: relative;">
               <span class="lectura-lemma-icon">\u{1F517}</span>
-              <input type="text" class="lectura-lemma-input" placeholder="Base root (e.g. root)..." value="${existingParent}" />
+              <input type="text" autocomplete="off" class="lectura-lemma-input" placeholder="Base root (e.g. root)..." value="${existingParent}" />
               <button type="button" class="lectura-lemma-btn-link" title="Link to base root">Link</button>
+              <div class="lectura-root-live-dropdown" style="display: none;"></div>
             </div>
             <div class="lectura-card-dict-bar" style="margin-top: 0; padding-top: 0; border-top: none;">
               <button type="button" class="lectura-dict-btn" data-dict="cambridge">Cambridge \u2197</button>
@@ -41555,10 +41634,11 @@
         <!-- Lemma Linking Input (only for single words) -->
         ${!isMultiWord ? `
           <div class="lectura-card-lemma-section">
-            <div class="lectura-lemma-input-row">
+            <div class="lectura-lemma-input-row" style="position: relative;">
               <span class="lectura-lemma-icon">\u{1F517}</span>
-              <input type="text" class="lectura-lemma-input" placeholder="Base root (e.g. root)..." value="${existingParent}" />
+              <input type="text" autocomplete="off" class="lectura-lemma-input" placeholder="Base root (e.g. root)..." value="${existingParent}" />
               <button type="button" class="lectura-lemma-btn-link" title="Link to base root">Link</button>
+              <div class="lectura-root-live-dropdown" style="display: none;"></div>
             </div>
           </div>
         ` : ""}
@@ -41732,24 +41812,140 @@
               const lemmaInput2 = this.tooltipElement?.querySelector(".lectura-lemma-input, #root-input-field, .glass-root-input, .calm-root-field");
               if (lemmaInput2) {
                 lemmaInput2.value = targetLemma;
-                lemmaInput2.focus();
               }
+              linkLemma(targetLemma);
             }
           });
         });
         const linkBtn = this.tooltipElement.querySelector(".lectura-lemma-btn-link, #btn-link-root, .glass-link-btn");
-        const lemmaInput = this.tooltipElement.querySelector(".lectura-lemma-input, #root-input-field, .glass-root-input");
+        const lemmaInput = this.tooltipElement.querySelector(".lectura-lemma-input, #root-input-field, .glass-root-input, .calm-root-field");
+        const dropdown = this.tooltipElement.querySelector(".lectura-root-live-dropdown");
         linkBtn?.addEventListener("click", (e2) => {
           e2.stopPropagation();
           if (lemmaInput?.value) linkLemma(lemmaInput.value);
         });
-        lemmaInput?.addEventListener("keydown", (e2) => {
-          if (e2.key === "Enter") {
-            e2.preventDefault();
-            e2.stopPropagation();
-            if (lemmaInput.value) linkLemma(lemmaInput.value);
+        if (lemmaInput && dropdown) {
+          const list4 = /* @__PURE__ */ new Map();
+          const translations = /* @__PURE__ */ new Map();
+          const vocab = this.cachedWordsByLang[currentLang] || {};
+          for (const [k2, item] of Object.entries(vocab)) {
+            if (!k2 || !item) continue;
+            const cleanKey = k2.replace(/^[a-zA-Z]+_/, "").trim();
+            if (!cleanKey) continue;
+            const wLower = cleanKey.toLowerCase();
+            list4.set(wLower, cleanKey);
+            const rawTrans = (item.translation || "").trim();
+            if (rawTrans) {
+              translations.set(wLower, rawTrans.split("\n")[0].trim());
+            } else if (item.status === "ignored" || item.status === "0") {
+              translations.set(wLower, "[Ignored]");
+            } else if (item.status === "known") {
+              translations.set(wLower, "[Known]");
+            }
           }
-        });
+          const wordLinks = this.cachedWordLinksByLang[currentLang] || {};
+          for (const [c2, p5] of Object.entries(wordLinks)) {
+            const cleanC = (c2 || "").replace(/^[a-zA-Z]+_/, "").trim();
+            const cleanP = (p5 || "").replace(/^[a-zA-Z]+_/, "").trim();
+            if (cleanC && !list4.has(cleanC.toLowerCase())) list4.set(cleanC.toLowerCase(), cleanC);
+            if (cleanP && !list4.has(cleanP.toLowerCase())) list4.set(cleanP.toLowerCase(), cleanP);
+          }
+          const candidates = Array.from(list4.entries()).map(([l2, orig]) => ({
+            lower: l2,
+            original: orig,
+            translation: translations.get(l2) || ""
+          }));
+          let filteredResults = [];
+          let highlightedIdx = -1;
+          const hideDropdown = () => {
+            dropdown.style.display = "none";
+            dropdown.innerHTML = "";
+            filteredResults = [];
+            highlightedIdx = -1;
+          };
+          const renderDropdown = () => {
+            const query = lemmaInput.value.trim().toLowerCase();
+            if (!query) {
+              hideDropdown();
+              return;
+            }
+            filteredResults = candidates.filter((c2) => c2.lower.includes(query) && c2.lower !== lower).sort((a2, b) => {
+              const aS = a2.lower.startsWith(query);
+              const bS = b.lower.startsWith(query);
+              if (aS && !bS) return -1;
+              if (!aS && bS) return 1;
+              return a2.lower.localeCompare(b.lower, currentLang || "es", { sensitivity: "base" });
+            }).slice(0, 50);
+            if (filteredResults.length === 0) {
+              hideDropdown();
+              return;
+            }
+            if (highlightedIdx >= filteredResults.length) highlightedIdx = 0;
+            dropdown.innerHTML = filteredResults.map(
+              (res, idx) => `
+              <button
+                type="button"
+                class="lectura-root-dropdown-item ${idx === highlightedIdx ? "active" : ""}"
+                data-root-val="${this.escapeHtml(res.lower)}"
+              >
+                <span class="lectura-root-item-word">${this.escapeHtml(res.original)}</span>
+                ${res.translation ? `<span class="lectura-root-item-meta">${this.escapeHtml(res.translation)}</span>` : ""}
+              </button>
+            `
+            ).join("");
+            dropdown.style.display = "block";
+            dropdown.querySelectorAll(".lectura-root-dropdown-item").forEach((itemEl) => {
+              itemEl.addEventListener("mousedown", (ev) => {
+                ev.preventDefault();
+                ev.stopPropagation();
+                const val = itemEl.getAttribute("data-root-val") || "";
+                if (val) {
+                  lemmaInput.value = val;
+                  hideDropdown();
+                  linkLemma(val);
+                }
+              });
+            });
+          };
+          lemmaInput.addEventListener("input", () => {
+            highlightedIdx = -1;
+            renderDropdown();
+          });
+          lemmaInput.addEventListener("focus", () => {
+            if (lemmaInput.value.trim()) renderDropdown();
+          });
+          lemmaInput.addEventListener("blur", () => {
+            window.setTimeout(() => hideDropdown(), 150);
+          });
+          lemmaInput.addEventListener("keydown", (e2) => {
+            e2.stopPropagation();
+            if (e2.key === "ArrowDown" && filteredResults.length > 0) {
+              e2.preventDefault();
+              highlightedIdx = (highlightedIdx + 1) % filteredResults.length;
+              renderDropdown();
+            } else if (e2.key === "ArrowUp" && filteredResults.length > 0) {
+              e2.preventDefault();
+              highlightedIdx = highlightedIdx <= 0 ? filteredResults.length - 1 : highlightedIdx - 1;
+              renderDropdown();
+            } else if (e2.key === "Enter") {
+              e2.preventDefault();
+              if (highlightedIdx >= 0 && highlightedIdx < filteredResults.length) {
+                const chosen = filteredResults[highlightedIdx].lower;
+                lemmaInput.value = chosen;
+                hideDropdown();
+                linkLemma(chosen);
+              } else if (lemmaInput.value.trim()) {
+                hideDropdown();
+                linkLemma(lemmaInput.value.trim());
+              }
+            } else if (e2.key === "Escape") {
+              e2.preventDefault();
+              hideDropdown();
+            }
+          });
+          lemmaInput.addEventListener("keyup", (e2) => e2.stopPropagation());
+          lemmaInput.addEventListener("keypress", (e2) => e2.stopPropagation());
+        }
       }
       const buttons = this.tooltipElement.querySelectorAll("[data-status]");
       buttons.forEach((btn) => {

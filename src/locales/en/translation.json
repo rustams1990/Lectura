@@ -270,7 +270,9 @@
     "not_specified": "Not specified",
     "backup_filename": "File:",
     "enable_video_card_clips": "Save card clips (video/audio)",
-    "enable_video_card_clips_desc": "Save video frame and original audio snippet when adding words to vocabulary"
+    "enable_video_card_clips_desc": "Save video frame and original audio snippet when adding words to vocabulary",
+    "show_reader_mic_label": "Pronunciation microphone icon in Reader (🎙️)",
+    "show_reader_mic_desc": "Show the microphone button next to sentences in the reading window for pronunciation practice (hotkey M)."
   },
   "header": {
     "open_menu": "Open Sidebar Menu",
@@ -1191,6 +1193,8 @@
     "parallel_translations_desc": "Show line-by-line sentence translations under text",
     "show_timestamps": "Timestamps (0:02, 0:12)",
     "show_timestamps_desc": "Show line-by-line timestamps in video and audio lessons",
+    "show_reader_mic": "Pronunciation Microphone (🎙️)",
+    "show_reader_mic_desc": "Show microphone icon on sentences and in the word card for pronunciation check (M)",
     "usage_example": "Usage example:",
     "confirmation_required": "Confirmation required",
     "cancel_btn": "Cancel",

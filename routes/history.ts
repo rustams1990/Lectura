@@ -1,9 +1,44 @@
 import { Router, Request, Response } from "express";
 import { resolveUserId, handleAuthError } from "./auth.ts";
-import { getDbConnection } from "./dbConnection.ts";
+import { getDbConnection, touchUserDbVersion } from "./dbConnection.ts";
 import { matchLanguage, LANG_MAP } from "./htmlTextUtils.ts";
 
 const router = Router();
+
+function recordDeletedHistoryTombstones(db: any, userId: string, idsToDelete: string[]) {
+  if (!Array.isArray(idsToDelete) || idsToDelete.length === 0) return;
+  try {
+    let existingTombstones: string[] = [];
+    const row = db.prepare("SELECT value FROM metadata WHERE user_id = ? AND key = 'deletedHistoryIds'").get(userId) as { value: string } | undefined;
+    if (row?.value) {
+      const parsed = JSON.parse(row.value);
+      if (Array.isArray(parsed)) existingTombstones = parsed;
+    }
+    const tombstoneSet = new Set<string>(existingTombstones);
+    for (const id of idsToDelete) {
+      if (typeof id === "string" && id) tombstoneSet.add(id);
+    }
+
+    const chunkSize = 500;
+    for (let i = 0; i < idsToDelete.length; i += chunkSize) {
+      const chunk = idsToDelete.slice(i, i + chunkSize);
+      const placeholders = chunk.map(() => "?").join(",");
+      const rows = db.prepare(`SELECT id, youtubeId, lessonTitle, customTitle, timestamp FROM reading_history WHERE user_id = ? AND id IN (${placeholders})`).all(userId, ...chunk) as any[];
+      for (const r of rows) {
+        if (!r) continue;
+        const day = typeof r.timestamp === "string" && r.timestamp.length >= 10 ? r.timestamp.slice(0, 10) : "";
+        if (r.youtubeId && day) tombstoneSet.add(`yt::${r.youtubeId}::${day}`);
+        const titleKey = (r.customTitle || r.lessonTitle || "").trim().toLowerCase();
+        if (titleKey && day) tombstoneSet.add(`title::${titleKey}::${day}`);
+      }
+    }
+
+    const updated = Array.from(tombstoneSet).slice(-5000);
+    db.prepare("INSERT OR REPLACE INTO metadata (user_id, key, value) VALUES (?, 'deletedHistoryIds', ?)").run(userId, JSON.stringify(updated));
+  } catch (e) {
+    console.warn("[recordDeletedHistoryTombstones] Warning:", e);
+  }
+}
 
 export function safeParseTags(raw: any): string[] {
   if (!raw) return [];
@@ -488,7 +523,10 @@ router.delete("/history/:id", (req: Request, res: Response) => {
   const { id } = req.params;
   try {
     const db = getDbConnection(userId);
+    recordDeletedHistoryTombstones(db, userId, [id]);
+    db.prepare("DELETE FROM item_tags WHERE user_id = ? AND item_id = ?").run(userId, id);
     const result = db.prepare("DELETE FROM reading_history WHERE user_id = ? AND id = ?").run(userId, id);
+    touchUserDbVersion(userId);
     console.log("[Server SQL Delete]", { id, changes: result.changes });
     return res.json({ status: "success", id, changes: result.changes });
   } catch (err: any) {
@@ -518,6 +556,7 @@ router.post("/history/batch-delete", (req: Request, res: Response) => {
     const db = getDbConnection(userId);
     let totalDeleted = 0;
     db.transaction(() => {
+      recordDeletedHistoryTombstones(db, userId, ids);
       const chunkSize = 500;
       for (let i = 0; i < ids.length; i += chunkSize) {
         const chunk = ids.slice(i, i + chunkSize);
@@ -527,6 +566,7 @@ router.post("/history/batch-delete", (req: Request, res: Response) => {
         totalDeleted += result.changes;
       }
     })();
+    touchUserDbVersion(userId);
     console.log("[Server SQL Batch Delete]", { count: ids.length, totalDeleted });
     return res.json({ status: "success", count: ids.length, deletedCount: totalDeleted });
   } catch (err: any) {
@@ -932,7 +972,10 @@ router.delete("/activity/log/:id", (req: Request, res: Response) => {
   const { id } = req.params;
   try {
     const db = getDbConnection(userId);
+    recordDeletedHistoryTombstones(db, userId, [id]);
+    db.prepare("DELETE FROM item_tags WHERE user_id = ? AND item_id = ?").run(userId, id);
     const result = db.prepare("DELETE FROM reading_history WHERE user_id = ? AND id = ?").run(userId, id);
+    touchUserDbVersion(userId);
     return res.json({ success: true, id, changes: result.changes });
   } catch (err: any) {
     console.error("[DELETE /api/activity/log/:id] Error:", err);

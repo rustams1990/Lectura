@@ -226,11 +226,30 @@ export function getLocalServerDb(userId: string = "default") {
 
     // Reading history — strictly this user's
     let history: any[] = [];
+    let deletedHistoryIds: string[] = [];
+    try {
+      const delHistRow = db.prepare("SELECT value FROM metadata WHERE user_id = ? AND key = 'deletedHistoryIds'").get(userId) as { value: string } | undefined;
+      if (delHistRow?.value) {
+        const parsed = JSON.parse(delHistRow.value);
+        if (Array.isArray(parsed)) deletedHistoryIds = parsed;
+      }
+    } catch (_) {}
+    const deletedHistorySet = new Set<string>(deletedHistoryIds);
+
     try {
       const historyRows = db.prepare(
         "SELECT * FROM reading_history WHERE user_id = ? ORDER BY timestamp DESC"
       ).all(userId) as any[];
-      history = historyRows.map((h) => ({
+      history = historyRows
+        .filter((h) => {
+          if (deletedHistorySet.has(h.id)) return false;
+          const hDay = typeof h.timestamp === "string" && h.timestamp.length >= 10 ? h.timestamp.slice(0, 10) : "";
+          if (h.youtubeId && hDay && deletedHistorySet.has(`yt::${h.youtubeId}::${hDay}`)) return false;
+          const hTitleKey = (h.customTitle || h.lessonTitle || "").trim().toLowerCase();
+          if (hTitleKey && hDay && deletedHistorySet.has(`title::${hTitleKey}::${hDay}`)) return false;
+          return true;
+        })
+        .map((h) => ({
         id: h.id,
         lessonId: h.lessonId,
         lessonTitle: h.lessonTitle,
@@ -324,6 +343,7 @@ export function getLocalServerDb(userId: string = "default") {
       listeningSeconds,
       languageFlags,
       history,
+      deletedHistoryIds,
       videoProgress,
       readingProgress,
       readerSettings,
@@ -1032,8 +1052,39 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
 
+      let serverDeletedHistorySet = new Set<string>();
+      try {
+        const delHistRow = db.prepare("SELECT value FROM metadata WHERE user_id = ? AND key = 'deletedHistoryIds'").get(userId) as { value: string } | undefined;
+        if (delHistRow?.value) {
+          const parsed = JSON.parse(delHistRow.value);
+          if (Array.isArray(parsed)) {
+            serverDeletedHistorySet = new Set(parsed);
+          }
+        }
+      } catch (_) {}
+
       if (Array.isArray(data.deletedHistoryIds) && data.deletedHistoryIds.length > 0) {
         const placeholders = data.deletedHistoryIds.map(() => "?").join(",");
+        try {
+          const rowsToDelete = db.prepare(`SELECT id, youtubeId, lessonTitle, customTitle, timestamp FROM reading_history WHERE user_id = ? AND id IN (${placeholders})`).all(userId, ...data.deletedHistoryIds) as any[];
+          for (const r of rowsToDelete) {
+            if (!r) continue;
+            const day = typeof r.timestamp === "string" && r.timestamp.length >= 10 ? r.timestamp.slice(0, 10) : "";
+            if (r.youtubeId && day) serverDeletedHistorySet.add(`yt::${r.youtubeId}::${day}`);
+            const titleKey = (r.customTitle || r.lessonTitle || "").trim().toLowerCase();
+            if (titleKey && day) serverDeletedHistorySet.add(`title::${titleKey}::${day}`);
+          }
+        } catch (_) {}
+
+        for (const delId of data.deletedHistoryIds) {
+          if (typeof delId === "string" && delId) serverDeletedHistorySet.add(delId);
+        }
+
+        const updatedTombstones = Array.from(serverDeletedHistorySet).slice(-5000);
+        serverDeletedHistorySet = new Set(updatedTombstones);
+        insertMetadata.run(userId, "deletedHistoryIds", JSON.stringify(updatedTombstones));
+
+        db.prepare(`DELETE FROM item_tags WHERE user_id = ? AND item_id IN (${placeholders})`).run(userId, ...data.deletedHistoryIds);
         const result = db.prepare(`DELETE FROM reading_history WHERE user_id = ? AND id IN (${placeholders})`).run(userId, ...data.deletedHistoryIds);
         console.log('[Server SQL Delete Bulk]', { deletedIds: data.deletedHistoryIds, changes: result.changes });
       }
@@ -1061,6 +1112,11 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
 
         for (const h of historyList) {
           if (!h || !h.id) continue;
+          if (serverDeletedHistorySet.has(h.id)) continue;
+          const hDay = typeof h.timestamp === "string" && h.timestamp.length >= 10 ? h.timestamp.slice(0, 10) : "";
+          if (h.youtubeId && hDay && serverDeletedHistorySet.has(`yt::${h.youtubeId}::${hDay}`)) continue;
+          const hTitleKey = (h.customTitle || h.lessonTitle || "").trim().toLowerCase();
+          if (hTitleKey && hDay && serverDeletedHistorySet.has(`title::${hTitleKey}::${hDay}`)) continue;
           
           const incomingDuration = h.durationSeconds || 0;
           const incomingPosition = h.lastPosition || 0;

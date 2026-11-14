@@ -39399,6 +39399,374 @@
     }
   }
 
+  // src/utils/pronunciationService.ts
+  var lastRecordedBlobUrl = null;
+  function revokeLastRecordedAudio() {
+    if (lastRecordedBlobUrl) {
+      try {
+        URL.revokeObjectURL(lastRecordedBlobUrl);
+      } catch (_2) {
+      }
+      lastRecordedBlobUrl = null;
+    }
+  }
+  function normalizeForSpeechCompare(text, stripAccents = true) {
+    if (!text) return "";
+    let s3 = text.toLowerCase().replace(/['’`´]/g, "'").replace(/[^\p{L}\p{N}\s']/gu, " ").replace(/\s+/g, " ").trim();
+    if (stripAccents) {
+      s3 = s3.replace(/ё/g, "\u0435").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    }
+    return s3;
+  }
+  function computeWordSimilarity(targetWord, spokenWord) {
+    const aExact = normalizeForSpeechCompare(targetWord, false);
+    const bExact = normalizeForSpeechCompare(spokenWord, false);
+    if (!aExact && !bExact) return 1;
+    if (!aExact || !bExact) return 0;
+    if (aExact === bExact) return 1;
+    const a2 = normalizeForSpeechCompare(targetWord, true);
+    const b = normalizeForSpeechCompare(spokenWord, true);
+    if (a2 === b) return 0.96;
+    const m3 = a2.length;
+    const n3 = b.length;
+    const dp = Array.from({ length: m3 + 1 }, () => Array(n3 + 1).fill(0));
+    for (let i3 = 0; i3 <= m3; i3++) dp[i3][0] = i3;
+    for (let j2 = 0; j2 <= n3; j2++) dp[0][j2] = j2;
+    for (let i3 = 1; i3 <= m3; i3++) {
+      for (let j2 = 1; j2 <= n3; j2++) {
+        const cost = a2[i3 - 1] === b[j2 - 1] ? 0 : 1;
+        dp[i3][j2] = Math.min(dp[i3 - 1][j2] + 1, dp[i3][j2 - 1] + 1, dp[i3 - 1][j2 - 1] + cost);
+      }
+    }
+    const dist = dp[m3][n3];
+    const maxLen = Math.max(m3, n3);
+    return Math.max(0, (maxLen - dist) / maxLen);
+  }
+  function evaluatePronunciation(targetText, spokenText, acousticConfidence, audioBlobUrl) {
+    const rawTokens = (targetText || "").trim().split(/\s+/).filter(Boolean);
+    const spokenWords = normalizeForSpeechCompare(spokenText || "", false).split(/\s+/).filter(Boolean);
+    if (rawTokens.length === 0) {
+      return {
+        targetText,
+        spokenText,
+        transcript: spokenText,
+        overallScore: 0,
+        words: [],
+        audioBlobUrl
+      };
+    }
+    if (spokenWords.length === 0) {
+      return {
+        targetText,
+        spokenText: "",
+        transcript: "",
+        overallScore: 0,
+        words: rawTokens.map((raw) => ({
+          raw,
+          word: raw,
+          clean: normalizeForSpeechCompare(raw, false),
+          similarity: 0,
+          status: "poor"
+        })),
+        audioBlobUrl
+      };
+    }
+    const results = [];
+    let spokenCursor = 0;
+    for (let i3 = 0; i3 < rawTokens.length; i3++) {
+      const raw = rawTokens[i3];
+      const clean2 = normalizeForSpeechCompare(raw, false);
+      if (!clean2) {
+        results.push({ raw, word: raw, clean: raw, similarity: 100, status: "good" });
+        continue;
+      }
+      let bestSim = 0;
+      let bestIdx = -1;
+      const searchStart = Math.max(0, spokenCursor - 1);
+      const searchEnd = Math.min(spokenWords.length - 1, spokenCursor + 3);
+      for (let j2 = searchStart; j2 <= searchEnd; j2++) {
+        const sim = computeWordSimilarity(clean2, spokenWords[j2]);
+        if (sim > bestSim) {
+          bestSim = sim;
+          bestIdx = j2;
+        }
+      }
+      if (bestIdx !== -1 && bestSim >= 0.45) {
+        spokenCursor = bestIdx + 1;
+      }
+      const simPct = Math.round(bestSim * 100);
+      const status = simPct >= 80 ? "good" : simPct >= 50 ? "fair" : "poor";
+      const matched = bestIdx !== -1 ? spokenWords[bestIdx] : void 0;
+      results.push({
+        raw,
+        word: raw,
+        clean: clean2,
+        spokenMatch: matched,
+        spokenWord: matched,
+        similarity: simPct,
+        status
+      });
+    }
+    const avgWordScore = results.reduce((sum, w) => sum + w.similarity, 0) / Math.max(1, results.length);
+    const confBoost = typeof acousticConfidence === "number" && acousticConfidence > 0 ? Math.min(100, Math.round(acousticConfidence * 100)) : avgWordScore;
+    const overallScore = Math.min(
+      100,
+      Math.max(0, Math.round(avgWordScore * 0.88 + confBoost * 0.12))
+    );
+    return {
+      targetText,
+      spokenText,
+      transcript: spokenText,
+      overallScore,
+      words: results,
+      audioBlobUrl
+    };
+  }
+  function resolveSpeechLocale(languageOrLocale) {
+    const raw = (languageOrLocale || "en").trim();
+    if (/^[a-z]{2,3}-[A-Z]{2,4}$/.test(raw)) return raw;
+    const lower = raw.toLowerCase();
+    if (lower.startsWith("es") || lower.includes("spanish") || lower.includes("\u0438\u0441\u043F\u0430\u043D")) return "es-MX";
+    if (lower.startsWith("en") || lower.includes("english") || lower.includes("\u0430\u043D\u0433\u043B")) return "en-US";
+    if (lower.startsWith("fr") || lower.includes("french") || lower.includes("\u0444\u0440\u0430\u043D\u0446")) return "fr-FR";
+    if (lower.startsWith("de") || lower.includes("german") || lower.includes("\u043D\u0435\u043C")) return "de-DE";
+    if (lower.startsWith("it") || lower.includes("italian") || lower.includes("\u0438\u0442\u0430\u043B")) return "it-IT";
+    if (lower.startsWith("pt") || lower.includes("portug") || lower.includes("\u043F\u043E\u0440\u0442\u0443\u0433")) return "pt-BR";
+    if (lower.startsWith("ru") || lower.includes("russian") || lower.includes("\u0440\u0443\u0441")) return "ru-RU";
+    if (lower.startsWith("uk") || lower.includes("ukrain") || lower.includes("\u0443\u043A\u0440")) return "uk-UA";
+    if (lower.startsWith("ja") || lower.includes("japan") || lower.includes("\u044F\u043F\u043E\u043D")) return "ja-JP";
+    if (lower.startsWith("zh") || lower.includes("chin") || lower.includes("\u043A\u0438\u0442")) return "zh-CN";
+    if (lower.startsWith("ko") || lower.includes("korean") || lower.includes("\u043A\u043E\u0440")) return "ko-KR";
+    if (lower.startsWith("tr") || lower.includes("turk") || lower.includes("\u0442\u0443\u0440")) return "tr-TR";
+    if (lower.startsWith("ar") || lower.includes("arab") || lower.includes("\u0430\u0440\u0430\u0431")) return "ar-SA";
+    if (lower.startsWith("pl") || lower.includes("polish") || lower.includes("\u043F\u043E\u043B\u044C\u0441\u043A")) return "pl-PL";
+    return "en-US";
+  }
+  function formatMicrophoneError(err, uiLang = "en") {
+    const isRu = uiLang.toLowerCase().startsWith("ru");
+    const isUk = uiLang.toLowerCase().startsWith("uk");
+    const errName = String(err?.name || "");
+    if (errName === "NotFoundError" || errName === "DevicesNotFoundError") {
+      if (isRu) return "\u041C\u0438\u043A\u0440\u043E\u0444\u043E\u043D \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D. \u041F\u043E\u0434\u043A\u043B\u044E\u0447\u0438\u0442\u0435 \u0438\u043B\u0438 \u0432\u043A\u043B\u044E\u0447\u0438\u0442\u0435 \u043C\u0438\u043A\u0440\u043E\u0444\u043E\u043D \u0432 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0430\u0445 Windows.";
+      if (isUk) return "\u041C\u0456\u043A\u0440\u043E\u0444\u043E\u043D \u043D\u0435 \u0437\u043D\u0430\u0439\u0434\u0435\u043D\u043E. \u041F\u0456\u0434\u043A\u043B\u044E\u0447\u0456\u0442\u044C \u0430\u0431\u043E \u0443\u0432\u0456\u043C\u043A\u043D\u0456\u0442\u044C \u043C\u0456\u043A\u0440\u043E\u0444\u043E\u043D \u0443 \u043D\u0430\u043B\u0430\u0448\u0442\u0443\u0432\u0430\u043D\u043D\u044F\u0445 \u0441\u0438\u0441\u0442\u0435\u043C\u0438.";
+      return "No microphone found. Please connect or enable a microphone in your system settings.";
+    }
+    if (errName === "NotReadableError" || errName === "TrackStartError") {
+      if (isRu) return "\u041C\u0438\u043A\u0440\u043E\u0444\u043E\u043D \u0437\u0430\u043D\u044F\u0442 \u0434\u0440\u0443\u0433\u043E\u0439 \u043F\u0440\u043E\u0433\u0440\u0430\u043C\u043C\u043E\u0439 \u0438\u043B\u0438 \u043E\u0442\u043A\u043B\u044E\u0447\u0451\u043D \u0432 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0430\u0445 \u043A\u043E\u043D\u0444\u0438\u0434\u0435\u043D\u0446\u0438\u0430\u043B\u044C\u043D\u043E\u0441\u0442\u0438 Windows.";
+      if (isUk) return "\u041C\u0456\u043A\u0440\u043E\u0444\u043E\u043D \u0437\u0430\u0439\u043D\u044F\u0442\u0438\u0439 \u0456\u043D\u0448\u043E\u044E \u043F\u0440\u043E\u0433\u0440\u0430\u043C\u043E\u044E \u0430\u0431\u043E \u0432\u0438\u043C\u043A\u043D\u0435\u043D\u0438\u0439 \u0443 \u043D\u0430\u043B\u0430\u0448\u0442\u0443\u0432\u0430\u043D\u043D\u044F\u0445 \u043A\u043E\u043D\u0444\u0456\u0434\u0435\u043D\u0446\u0456\u0439\u043D\u043E\u0441\u0442\u0456.";
+      return "Microphone is busy or blocked by Windows privacy settings.";
+    }
+    if (isRu) {
+      return "\u0414\u043E\u0441\u0442\u0443\u043F \u043A \u043C\u0438\u043A\u0440\u043E\u0444\u043E\u043D\u0443 \u0437\u0430\u043F\u0440\u0435\u0449\u0451\u043D \u0434\u043B\u044F \u044D\u0442\u043E\u0433\u043E \u0441\u0430\u0439\u0442\u0430. \u041D\u0430\u0436\u043C\u0438\u0442\u0435 \u043D\u0430 \u0437\u043D\u0430\u0447\u043E\u043A \u0441\u043B\u0435\u0432\u0430 \u043E\u0442 \u0430\u0434\u0440\u0435\u0441\u043D\u043E\u0439 \u0441\u0442\u0440\u043E\u043A\u0438 \u0431\u0440\u0430\u0443\u0437\u0435\u0440\u0430 \u0438 \u0440\u0430\u0437\u0440\u0435\u0448\u0438\u0442\u0435 \u0434\u043E\u0441\u0442\u0443\u043F \u043A \u043C\u0438\u043A\u0440\u043E\u0444\u043E\u043D\u0443.";
+    }
+    if (isUk) {
+      return "\u0414\u043E\u0441\u0442\u0443\u043F \u0434\u043E \u043C\u0456\u043A\u0440\u043E\u0444\u043E\u043D\u0430 \u0437\u0430\u0431\u043E\u0440\u043E\u043D\u0435\u043D\u043E \u0434\u043B\u044F \u0446\u044C\u043E\u0433\u043E \u0441\u0430\u0439\u0442\u0443. \u041D\u0430\u0442\u0438\u0441\u043D\u0456\u0442\u044C \u043D\u0430 \u0437\u043D\u0430\u0447\u043E\u043A \u0431\u0456\u043B\u044F \u0430\u0434\u0440\u0435\u0441\u043D\u043E\u0433\u043E \u0440\u044F\u0434\u043A\u0430 \u0431\u0440\u0430\u0443\u0437\u0435\u0440\u0430 \u0442\u0430 \u0434\u043E\u0437\u0432\u043E\u043B\u044C\u0442\u0435 \u043C\u0456\u043A\u0440\u043E\u0444\u043E\u043D.";
+    }
+    return "Microphone access is blocked for this site. Click the site settings icon in the address bar and allow Microphone.";
+  }
+  var PronunciationRecorderSession = class {
+    constructor(targetText, languageOrLocale, callbacks, serverBaseUrl = "", uiLanguage = "en") {
+      this.targetText = targetText;
+      this.languageOrLocale = languageOrLocale;
+      this.callbacks = callbacks;
+      this.mediaStream = null;
+      this.mediaRecorder = null;
+      this.audioChunks = [];
+      this.recognition = null;
+      this.isStopped = false;
+      this.finalSpokenText = "";
+      this.interimSpokenText = "";
+      this.bestConfidence = 0;
+      this.silenceTimer = null;
+      this.maxDurationTimer = null;
+      this.speechRecognitionFailed = false;
+      this.serverBaseUrl = serverBaseUrl.replace(/\/+$/, "");
+      this.uiLanguage = uiLanguage || "en";
+    }
+    async start() {
+      this.isStopped = false;
+      this.finalSpokenText = "";
+      this.interimSpokenText = "";
+      this.bestConfidence = 0;
+      this.audioChunks = [];
+      this.speechRecognitionFailed = false;
+      this.callbacks.onStateChange?.("listening");
+      try {
+        try {
+          this.mediaStream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+              echoCancellation: true,
+              noiseSuppression: true,
+              autoGainControl: true
+            }
+          });
+        } catch (_2) {
+          this.mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        }
+        const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus") ? "audio/webm;codecs=opus" : MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "";
+        this.mediaRecorder = mimeType ? new MediaRecorder(this.mediaStream, { mimeType }) : new MediaRecorder(this.mediaStream);
+        this.mediaRecorder.ondataavailable = (ev) => {
+          if (ev.data && ev.data.size > 0) {
+            this.audioChunks.push(ev.data);
+          }
+        };
+        this.mediaRecorder.start(100);
+      } catch (micErr) {
+        this.callbacks.onStateChange?.("idle");
+        this.callbacks.onError?.(formatMicrophoneError(micErr, this.uiLanguage));
+        return;
+      }
+      const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
+      const wordCount3 = this.targetText.trim().split(/\s+/).length;
+      const maxListenMs = Math.min(14e3, Math.max(4500, wordCount3 * 1100 + 2500));
+      this.maxDurationTimer = setTimeout(() => {
+        this.stop();
+      }, maxListenMs);
+      if (SpeechRecognitionCtor) {
+        try {
+          const rec = new SpeechRecognitionCtor();
+          this.recognition = rec;
+          rec.lang = resolveSpeechLocale(this.languageOrLocale);
+          rec.continuous = true;
+          rec.interimResults = true;
+          rec.maxAlternatives = 3;
+          rec.onresult = (event) => {
+            if (this.isStopped) return;
+            let interim = "";
+            let finalStr = "";
+            for (let i3 = 0; i3 < event.results.length; i3++) {
+              const res = event.results[i3];
+              let chosenTranscript = res[0]?.transcript || "";
+              let chosenConf = res[0]?.confidence || 0;
+              let bestAltSim = computeWordSimilarity(this.targetText, chosenTranscript);
+              for (let a2 = 1; a2 < res.length; a2++) {
+                const altTranscript = res[a2]?.transcript || "";
+                const altSim = computeWordSimilarity(this.targetText, altTranscript);
+                if (altSim > bestAltSim + 0.05) {
+                  bestAltSim = altSim;
+                  chosenTranscript = altTranscript;
+                  chosenConf = res[a2]?.confidence || chosenConf;
+                }
+              }
+              if (res.isFinal) {
+                finalStr += " " + chosenTranscript;
+                if (chosenConf > this.bestConfidence) {
+                  this.bestConfidence = chosenConf;
+                }
+              } else {
+                interim += " " + chosenTranscript;
+              }
+            }
+            if (finalStr.trim()) {
+              this.finalSpokenText = finalStr.trim();
+            }
+            this.interimSpokenText = (this.finalSpokenText + " " + interim).trim();
+            this.callbacks.onInterim?.(this.interimSpokenText);
+            const spokenCount = this.interimSpokenText.split(/\s+/).filter(Boolean).length;
+            if (this.silenceTimer) clearTimeout(this.silenceTimer);
+            const waitMs = spokenCount >= wordCount3 ? 750 : 1600;
+            this.silenceTimer = setTimeout(() => {
+              this.stop();
+            }, waitMs);
+          };
+          rec.onerror = (ev) => {
+            const errCode = ev?.error || "";
+            if (errCode === "network" || errCode === "service-not-allowed" || errCode === "not-allowed") {
+              this.speechRecognitionFailed = true;
+            }
+          };
+          rec.start();
+        } catch (_2) {
+          this.speechRecognitionFailed = true;
+        }
+      } else {
+        this.speechRecognitionFailed = true;
+      }
+    }
+    async stop() {
+      if (this.isStopped) return;
+      this.isStopped = true;
+      if (this.silenceTimer) {
+        clearTimeout(this.silenceTimer);
+        this.silenceTimer = null;
+      }
+      if (this.maxDurationTimer) {
+        clearTimeout(this.maxDurationTimer);
+        this.maxDurationTimer = null;
+      }
+      try {
+        this.recognition?.stop();
+      } catch (_2) {
+      }
+      this.callbacks.onStateChange?.("processing");
+      this.callbacks.onEvaluating?.();
+      const audioBlob = await new Promise((resolve) => {
+        if (!this.mediaRecorder || this.mediaRecorder.state === "inactive") {
+          resolve(this.audioChunks.length > 0 ? new Blob(this.audioChunks, { type: "audio/webm" }) : null);
+          return;
+        }
+        this.mediaRecorder.onstop = () => {
+          resolve(this.audioChunks.length > 0 ? new Blob(this.audioChunks, { type: this.mediaRecorder?.mimeType || "audio/webm" }) : null);
+        };
+        try {
+          this.mediaRecorder.stop();
+        } catch (_2) {
+          resolve(null);
+        }
+      });
+      if (this.mediaStream) {
+        try {
+          this.mediaStream.getTracks().forEach((t4) => t4.stop());
+        } catch (_2) {
+        }
+        this.mediaStream = null;
+      }
+      let blobUrl = null;
+      if (audioBlob && audioBlob.size > 0) {
+        revokeLastRecordedAudio();
+        blobUrl = URL.createObjectURL(audioBlob);
+        lastRecordedBlobUrl = blobUrl;
+      }
+      let spoken = (this.finalSpokenText || this.interimSpokenText).trim();
+      if (!spoken && audioBlob && audioBlob.size > 200) {
+        try {
+          const base64Audio = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(String(reader.result || ""));
+            reader.onerror = reject;
+            reader.readAsDataURL(audioBlob);
+          });
+          if (base64Audio) {
+            const endpoint = `${this.serverBaseUrl}/api/whisper/pronounce`;
+            const res = await fetch(endpoint, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                audioBase64: base64Audio,
+                language: resolveSpeechLocale(this.languageOrLocale).split("-")[0]
+              })
+            });
+            if (res.ok) {
+              const data = await res.json();
+              if (data?.transcript) {
+                spoken = String(data.transcript).trim();
+              }
+            }
+          }
+        } catch (_2) {
+        }
+      }
+      this.callbacks.onStateChange?.("idle");
+      const evaluation = evaluatePronunciation(
+        this.targetText,
+        spoken,
+        this.bestConfidence || void 0,
+        blobUrl
+      );
+      this.callbacks.onResult(evaluation);
+    }
+  };
+
   // extension/src/content/youtube-overlay.ts
   initYouTubeTracker();
   function initSubtitleAppearance() {
@@ -39657,17 +40025,24 @@
   function normalizeLangCode(lang) {
     if (!lang) return "en";
     const l2 = lang.trim().toLowerCase();
-    if (l2.startsWith("es") || l2.includes("span")) return "es";
-    if (l2.startsWith("en") || l2.includes("engl")) return "en";
-    if (l2.startsWith("fr") || l2.includes("fren")) return "fr";
-    if (l2.startsWith("de") || l2.includes("germ")) return "de";
-    if (l2.startsWith("ru") || l2.includes("russ")) return "ru";
-    if (l2.startsWith("it") || l2.includes("ital")) return "it";
-    if (l2.startsWith("pt") || l2.includes("port")) return "pt";
-    if (l2.startsWith("zh") || l2.includes("chin")) return "zh";
-    if (l2.startsWith("ja") || l2.includes("jap")) return "ja";
-    if (l2.startsWith("ko") || l2.includes("kore")) return "ko";
-    return l2.slice(0, 2);
+    const base = l2.split(/[-_]/)[0];
+    if (base === "es" || l2.includes("span")) return "es";
+    if (base === "en" || l2.includes("engl")) return "en";
+    if (base === "fr" || l2.includes("fren")) return "fr";
+    if (base === "de" || l2.includes("germ")) return "de";
+    if (base === "ru" || l2.includes("russ")) return "ru";
+    if (base === "uk" || l2.includes("ukra")) return "uk";
+    if (base === "it" || l2.includes("ital")) return "it";
+    if (base === "pt" || l2.includes("port")) return "pt";
+    if (base === "zh" || l2.includes("chin")) return "zh";
+    if (base === "ja" || l2.includes("jap")) return "ja";
+    if (base === "ko" || l2.includes("kore")) return "ko";
+    if (base === "ar" || l2.includes("arab")) return "ar";
+    if (base === "tr" || l2.includes("turk")) return "tr";
+    if (base === "pl" || l2.includes("poli")) return "pl";
+    if (base === "nl" || l2.includes("dutc")) return "nl";
+    if (base === "sv" || l2.includes("swed")) return "sv";
+    return base.slice(0, 2);
   }
   function cleanWordForTranslation(rawWord) {
     return cleanWordForLookup(rawWord);
@@ -39768,6 +40143,11 @@
       this.transcriptPanel = null;
       this.playerFloatingToggle = null;
       this.transcriptSearchQuery = "";
+      // Pronunciation Check & Sentence Shadowing (🎙️ [M])
+      this.activePronSession = null;
+      this.shadowingBox = null;
+      this.isSentenceShadowingActive = false;
+      this.activeRecordingAudioPlayer = null;
       // AbortController for in-flight translation requests
       this.translationAbortController = null;
       // YouTube Watch Time & Activity Tracking (Listening History)
@@ -40286,6 +40666,11 @@
       this.popupCard.className = "lectura-word-card";
       this.popupCard.style.display = "none";
       this.shadowRoot.appendChild(this.popupCard);
+      this.shadowingBox = document.createElement("div");
+      this.shadowingBox.className = "lectura-shadowing-bar";
+      this.shadowingBox.style.display = "none";
+      this.shadowingBox.addEventListener("click", (e2) => e2.stopPropagation());
+      this.shadowRoot.appendChild(this.shadowingBox);
       this.toastElement = document.createElement("div");
       this.toastElement.className = "lectura-toast";
       this.shadowRoot.appendChild(this.toastElement);
@@ -40300,6 +40685,7 @@
         else if (action === "next") this.jumpToNextCue();
         else if (action === "autopause") this.toggleAutoPauseAfterSubtitle();
         else if (action === "blur") this.cycleSubtitleBlurMode();
+        else if (action === "shadowing") this.triggerSentenceShadowing();
         else if (action === "transcript") this.toggleTranscriptSidebar();
       });
       this.shadowRoot.appendChild(this.playerFloatingToggle);
@@ -41625,6 +42011,82 @@
         color: #0f172a !important;
       }
 
+      /* Live Search Dropdown for Base Root */
+      .root-input-action-row,
+      .lectura-lemma-input-row {
+        position: relative !important;
+      }
+      .lectura-root-live-dropdown {
+        position: absolute;
+        top: calc(100% + 4px);
+        left: 0;
+        right: 0;
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        box-shadow: 0 10px 25px rgba(15, 23, 42, 0.16);
+        max-height: 175px;
+        overflow-y: auto;
+        z-index: 2147483647;
+        padding: 4px 0;
+      }
+      .lectura-word-card:not(.calm_light):not(.theme-calm-light) .lectura-root-live-dropdown {
+        background: #0f172a;
+        border-color: rgba(148, 163, 184, 0.25);
+        box-shadow: 0 12px 28px rgba(0, 0, 0, 0.55);
+      }
+      .lectura-root-dropdown-item {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 7px 12px;
+        background: transparent;
+        border: none;
+        border-bottom: 1px solid #f1f5f9;
+        cursor: pointer;
+        text-align: left;
+        font-family: inherit;
+        font-size: 12.5px;
+        transition: background 0.12s ease;
+        box-sizing: border-box;
+      }
+      .lectura-root-dropdown-item:last-child {
+        border-bottom: none;
+      }
+      .lectura-word-card:not(.calm_light):not(.theme-calm-light) .lectura-root-dropdown-item {
+        border-bottom-color: rgba(255, 255, 255, 0.06);
+      }
+      .lectura-root-dropdown-item:hover,
+      .lectura-root-dropdown-item.active {
+        background: #f1f5f9;
+      }
+      .lectura-word-card:not(.calm_light):not(.theme-calm-light) .lectura-root-dropdown-item:hover,
+      .lectura-word-card:not(.calm_light):not(.theme-calm-light) .lectura-root-dropdown-item.active {
+        background: rgba(56, 189, 248, 0.15);
+      }
+      .lectura-root-item-word {
+        font-weight: 700;
+        color: #1e293b;
+        text-transform: capitalize;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .lectura-word-card:not(.calm_light):not(.theme-calm-light) .lectura-root-item-word {
+        color: #f8fafc;
+      }
+      .lectura-root-item-meta {
+        font-size: 11px;
+        color: #94a3b8;
+        max-width: 165px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        flex-shrink: 0;
+      }
+
       /* \u041D\u0438\u0436\u043D\u044F\u044F \u043F\u0430\u043D\u0435\u043B\u044C \u0441\u0442\u0430\u0442\u0443\u0441\u043E\u0432 */
       .theme-calm-light .status-capsule-bar {
         background: #ffffff !important;
@@ -41824,6 +42286,157 @@
         border-color: #60a5fa;
         color: #ffffff;
         transform: scale(1.08);
+      }
+      .lectura-card-mic {
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 6px;
+        color: #f8fafc;
+        font-size: 13px;
+        cursor: pointer;
+        padding: 3px 6px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.15s ease;
+        line-height: 1;
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+      }
+      .lectura-card-mic:hover {
+        background: #10b981;
+        border-color: #34d399;
+        color: #ffffff;
+        transform: scale(1.08);
+      }
+      .lectura-card-mic.listening,
+      .glass-btn-sound.lectura-card-mic.listening {
+        background: #ef4444 !important;
+        border-color: #f87171 !important;
+        color: #ffffff !important;
+        animation: pronMicPulse 1.1s infinite ease-in-out;
+        box-shadow: 0 0 12px rgba(239, 68, 68, 0.65) !important;
+      }
+      @keyframes pronMicPulse {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.12); }
+      }
+      .lectura-card-pron-box {
+        margin: 8px 0 10px 0;
+        padding: 10px 12px;
+        border-radius: 12px;
+        background: rgba(15, 23, 42, 0.78);
+        border: 1px solid rgba(148, 163, 184, 0.22);
+        color: #f8fafc;
+        font-size: 12.5px;
+      }
+      .theme-calm-light .lectura-card-pron-box,
+      .calm_light .lectura-card-pron-box {
+        background: #f8fafc !important;
+        border: 1px solid #e2e8f0 !important;
+        color: #0f172a !important;
+      }
+      .lectura-shadowing-bar {
+        position: absolute;
+        left: 50%;
+        bottom: 135px;
+        transform: translateX(-50%);
+        min-width: 340px;
+        max-width: min(640px, 90vw);
+        background: rgba(15, 23, 42, 0.94);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border: 1px solid rgba(56, 189, 248, 0.35);
+        border-radius: 16px;
+        padding: 12px 16px;
+        color: #f8fafc;
+        z-index: 2147483646;
+        pointer-events: auto;
+        box-shadow: 0 14px 36px rgba(0, 0, 0, 0.55);
+        animation: cardFadeIn 0.15s ease-out;
+      }
+      .pron-word-chip {
+        display: inline-flex;
+        align-items: center;
+        padding: 2px 7px;
+        border-radius: 6px;
+        font-weight: 700;
+        font-size: 13px;
+        margin: 2px;
+        border: 1px solid transparent;
+      }
+      .pron-word-chip.good {
+        background: rgba(16, 185, 129, 0.2);
+        color: #34d399;
+        border-color: rgba(16, 185, 129, 0.45);
+      }
+      .pron-word-chip.fair {
+        background: rgba(245, 158, 11, 0.2);
+        color: #fbbf24;
+        border-color: rgba(245, 158, 11, 0.45);
+      }
+      .pron-word-chip.poor {
+        background: rgba(244, 63, 94, 0.2);
+        color: #fb7185;
+        border-color: rgba(244, 63, 94, 0.45);
+        text-decoration: underline wavy rgba(244, 63, 94, 0.75);
+      }
+      .theme-calm-light .pron-word-chip.good {
+        background: #d1fae5 !important;
+        color: #047857 !important;
+        border-color: #6ee7b7 !important;
+      }
+      .theme-calm-light .pron-word-chip.fair {
+        background: #fef3c7 !important;
+        color: #b45309 !important;
+        border-color: #fcd34d !important;
+      }
+      .theme-calm-light .pron-word-chip.poor {
+        background: #ffe4e6 !important;
+        color: #be123c !important;
+        border-color: #fda4af !important;
+      }
+      .pron-act-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 4px 10px;
+        border-radius: 8px;
+        font-size: 11.5px;
+        font-weight: 700;
+        cursor: pointer;
+        border: 1px solid rgba(148, 163, 184, 0.3);
+        background: rgba(30, 41, 59, 0.85);
+        color: #e2e8f0;
+        transition: all 0.15s ease;
+      }
+      .pron-act-btn:hover {
+        background: rgba(51, 65, 85, 0.95);
+        border-color: #38bdf8;
+        color: #ffffff;
+      }
+      .theme-calm-light .pron-act-btn {
+        background: #ffffff !important;
+        border-color: #cbd5e1 !important;
+        color: #1e293b !important;
+      }
+      .theme-calm-light .pron-act-btn:hover {
+        background: #f1f5f9 !important;
+        border-color: #0284c7 !important;
+        color: #0284c7 !important;
+      }
+      .lectura-token.pron-good {
+        color: #4ade80 !important;
+        text-shadow: 0 0 8px rgba(74, 222, 128, 0.45);
+        border-bottom: 2px solid #22c55e !important;
+      }
+      .lectura-token.pron-fair {
+        color: #facc15 !important;
+        border-bottom: 2px solid #eab308 !important;
+      }
+      .lectura-token.pron-poor {
+        color: #fb7185 !important;
+        border-bottom: 2px wavy #f43f5e !important;
       }
       .lectura-card-dialect-badge {
         background: rgba(255, 255, 255, 0.06);
@@ -42783,6 +43396,100 @@
       }
     `;
     }
+    getCurrentVideoTitleText() {
+      const titleEl = document.querySelector(
+        "h1.ytd-watch-metadata yt-formatted-string, #title h1 yt-formatted-string, h1.title.ytd-video-primary-info-renderer"
+      );
+      return (titleEl?.textContent || document.title || "").replace(/\s*-\s*YouTube$/i, "").trim();
+    }
+    isScriptIncompatibleWithVideoTitle(langCode) {
+      if (!langCode) return false;
+      const code = normalizeLangCode(langCode);
+      const title = this.getCurrentVideoTitleText();
+      if (!title || !/[a-zA-Z]{2,}/.test(title)) return false;
+      if (code === "ar" || code === "fa" || code === "ur") {
+        return !/[\u0600-\u06FF]/.test(title);
+      }
+      if (code === "bn") {
+        return !/[\u0980-\u09FF]/.test(title);
+      }
+      if (code === "hi" || code === "mr" || code === "ne") {
+        return !/[\u0900-\u097F]/.test(title);
+      }
+      if (code === "th") {
+        return !/[\u0E00-\u0E7F]/.test(title);
+      }
+      if (code === "he" || code === "iw") {
+        return !/[\u0590-\u05FF]/.test(title);
+      }
+      if (code === "el") {
+        return !/[\u0370-\u03FF]/.test(title);
+      }
+      return false;
+    }
+    selectBestTrackFromList(tracks, preferredLang) {
+      if (!Array.isArray(tracks) || tracks.length === 0) return null;
+      const pref = preferredLang ? normalizeLangCode(preferredLang) : normalizeLangCode(this.settings?.targetLanguage || "");
+      const explicitSpokenTracks = tracks.filter((t4) => t4.isSpokenOriginal && !this.isScriptIncompatibleWithVideoTitle(t4.languageCode));
+      if (explicitSpokenTracks.length > 0) {
+        return explicitSpokenTracks.find((t4) => t4.kind !== "asr") || explicitSpokenTracks[0];
+      }
+      const manualLangs = new Set(
+        tracks.filter((t4) => t4.kind !== "asr").map((t4) => normalizeLangCode(t4.languageCode)).filter(Boolean)
+      );
+      const asrLangs = new Set(
+        tracks.filter((t4) => t4.kind === "asr").map((t4) => normalizeLangCode(t4.languageCode)).filter(Boolean)
+      );
+      const pairedLangs = Array.from(manualLangs).filter((l2) => asrLangs.has(l2) && !this.isScriptIncompatibleWithVideoTitle(l2));
+      if (pairedLangs.length === 1) {
+        const spokenLang = pairedLangs[0];
+        return tracks.find((t4) => normalizeLangCode(t4.languageCode) === spokenLang && t4.kind !== "asr") || tracks.find((t4) => normalizeLangCode(t4.languageCode) === spokenLang);
+      }
+      const validManualLangs = Array.from(manualLangs).filter((l2) => !this.isScriptIncompatibleWithVideoTitle(l2));
+      if (validManualLangs.length === 1) {
+        const spokenLang = validManualLangs[0];
+        return tracks.find((t4) => normalizeLangCode(t4.languageCode) === spokenLang && t4.kind !== "asr") || tracks[0];
+      }
+      const validAsrLangs = Array.from(asrLangs).filter((l2) => !this.isScriptIncompatibleWithVideoTitle(l2));
+      if (validAsrLangs.length === 1) {
+        const spokenLang = validAsrLangs[0];
+        return tracks.find((t4) => normalizeLangCode(t4.languageCode) === spokenLang && t4.kind !== "asr") || tracks.find((t4) => normalizeLangCode(t4.languageCode) === spokenLang);
+      }
+      if (pref && !this.isScriptIncompatibleWithVideoTitle(pref)) {
+        const matchingPref = tracks.filter((t4) => normalizeLangCode(t4.languageCode) === pref);
+        if (matchingPref.length > 0) {
+          return matchingPref.find((t4) => t4.kind !== "asr") || matchingPref[0];
+        }
+      }
+      const defaultTrack = tracks.find((t4) => t4.isDefault && !this.isScriptIncompatibleWithVideoTitle(t4.languageCode));
+      if (defaultTrack) return defaultTrack;
+      for (const code of ["en", "es", "ru", "uk", "de", "fr", "pt", "it", "ja", "zh", "ko"]) {
+        if (this.isScriptIncompatibleWithVideoTitle(code)) continue;
+        const match2 = tracks.find((t4) => normalizeLangCode(t4.languageCode) === code && t4.kind !== "asr") || tracks.find((t4) => normalizeLangCode(t4.languageCode) === code);
+        if (match2) return match2;
+      }
+      return tracks.find((t4) => !this.isScriptIncompatibleWithVideoTitle(t4.languageCode)) || tracks[0];
+    }
+    isUnwantedAutoTranslatedTrack(trackLangCode) {
+      if (!trackLangCode) return false;
+      const clean2 = normalizeLangCode(trackLangCode);
+      const target = normalizeLangCode(this.settings?.targetLanguage || "");
+      if (clean2 === target && !this.isScriptIncompatibleWithVideoTitle(clean2)) return false;
+      if (this.isScriptIncompatibleWithVideoTitle(clean2)) {
+        return true;
+      }
+      if (["sq", "af", "am", "az", "eu", "bs", "hy", "ka", "kk", "km", "ky", "lo", "mk", "mn", "my", "si", "sw", "tg", "uz", "zu"].includes(clean2) && clean2 !== target) {
+        return true;
+      }
+      const bridged = window.__LECTURA_BRIDGED_TRACKS__;
+      if (bridged && Array.isArray(bridged.tracks) && bridged.tracks.length > 1) {
+        const bestClean = bridged.bestLang ? normalizeLangCode(bridged.bestLang) : normalizeLangCode(this.selectBestTrackFromList(bridged.tracks)?.languageCode || "");
+        if (bestClean && bestClean !== clean2) {
+          return true;
+        }
+      }
+      return false;
+    }
     /**
      * Injects lightweight network interceptor into the main YouTube page context
      * to catch /api/timedtext network requests and extract exact ISO language code ('es', 'fr', 'en', 'pt', etc.)
@@ -42791,6 +43498,17 @@
       window.addEventListener("LECTURA_TIMEDTEXT_LANG", (event) => {
         const lang = event?.detail?.lang;
         if (lang) {
+          if (this.isUnwantedAutoTranslatedTrack(lang)) {
+            const bridged = window.__LECTURA_BRIDGED_TRACKS__;
+            const best = bridged?.tracks ? this.selectBestTrackFromList(bridged.tracks) : null;
+            const preferredLang = best?.languageCode || bridged?.bestLang || this.settings?.targetLanguage || "en";
+            window.dispatchEvent(
+              new CustomEvent("LECTURA_REQUEST_CAPTIONS", {
+                detail: { forceEnableCC: true, preferredLang }
+              })
+            );
+            return;
+          }
           const clean2 = normalizeLangCode(lang);
           console.log("\u{1F3AF} [Lectura] Active Subtitle Language detected from Network Event:", clean2);
           if (clean2 && clean2 !== this.videoSessionLanguage) {
@@ -42804,6 +43522,10 @@
       });
       window.addEventListener("LECTURA_TIMEDTEXT_DATA", (event) => {
         const { lang, text } = event?.detail || {};
+        if (lang && this.isUnwantedAutoTranslatedTrack(lang)) {
+          console.log(`\u26A0\uFE0F [Lectura Subtitles] Ignoring unwanted auto-selected track (${lang}) in favor of original spoken language.`);
+          return;
+        }
         if (text && typeof text === "string") {
           try {
             let sentences = [];
@@ -42816,10 +43538,24 @@
             } else if (trimmed.startsWith("<")) {
               sentences = parseXmlIntoCleanSentences(trimmed);
             }
+            const sampleText = sentences.slice(0, 5).map((s3) => s3.text).join(" ");
+            if (sampleText && /[\u0600-\u06FF]{3,}/.test(sampleText) && normalizeLangCode(this.settings?.targetLanguage || "") !== "ar") {
+              if (this.isScriptIncompatibleWithVideoTitle("ar")) {
+                return;
+              }
+            }
             if (sentences.length > 0) {
               this.preparsedSentences = sentences;
               this.currentSentenceIndex = -1;
               this.autoPausedSentenceIndex = -1;
+              if (lang && !this.isUnwantedAutoTranslatedTrack(lang)) {
+                const clean2 = normalizeLangCode(lang);
+                window.__LECTURA_ACTIVE_LANG__ = clean2;
+                window.__LECTURA_YT_TRACK_LANG__ = clean2;
+                this.videoSessionLanguage = clean2;
+                this.currentDetectedLanguage = getLanguageDisplayName(clean2);
+                this.syncVocabulary(clean2);
+              }
               console.log(`\u2705 [Lectura Subtitles] Loaded ${sentences.length} sentences from intercepted TimedText (${lang || "active track"})`);
               this.updateFloatingPillAndTranscript();
               if (this.videoElement) {
@@ -42835,20 +43571,24 @@
         }
       });
       window.addEventListener("LECTURA_CAPTION_TRACKS", (event) => {
-        const { videoId, tracks } = event?.detail || {};
+        const { videoId, tracks, spokenLang, bestLang } = event?.detail || {};
         if (Array.isArray(tracks) && tracks.length > 0) {
-          window.__LECTURA_BRIDGED_TRACKS__ = { videoId, tracks };
-          const target = normalizeLangCode(this.settings?.targetLanguage || "");
-          const matched = tracks.find((t4) => normalizeLangCode(t4.languageCode) === target) || tracks.find((t4) => t4.isDefault) || tracks[0];
-          if (matched && matched.languageCode) {
-            const detectedLang = normalizeLangCode(matched.languageCode);
-            if (detectedLang && detectedLang !== this.videoSessionLanguage) {
-              console.log("\u{1F3AF} [Lectura] Active Subtitle Language resolved from captionTracks:", detectedLang);
-              window.__LECTURA_ACTIVE_LANG__ = detectedLang;
-              window.__LECTURA_YT_TRACK_LANG__ = detectedLang;
-              this.videoSessionLanguage = detectedLang;
-              this.currentDetectedLanguage = getLanguageDisplayName(detectedLang);
-              this.syncVocabulary(detectedLang);
+          window.__LECTURA_BRIDGED_TRACKS__ = { videoId, tracks, spokenLang, bestLang };
+          const matched = this.selectBestTrackFromList(tracks);
+          const resolvedCode = normalizeLangCode(matched?.languageCode || bestLang || spokenLang || "");
+          if (resolvedCode) {
+            const wasWrongLang = this.videoSessionLanguage && this.videoSessionLanguage !== resolvedCode;
+            if (resolvedCode !== this.videoSessionLanguage) {
+              console.log("\u{1F3AF} [Lectura] Active Subtitle Language resolved from captionTracks:", resolvedCode);
+              window.__LECTURA_ACTIVE_LANG__ = resolvedCode;
+              window.__LECTURA_YT_TRACK_LANG__ = resolvedCode;
+              this.videoSessionLanguage = resolvedCode;
+              this.currentDetectedLanguage = getLanguageDisplayName(resolvedCode);
+              this.syncVocabulary(resolvedCode);
+            }
+            if (wasWrongLang) {
+              this.preparsedSentences = [];
+              this.currentSentenceIndex = -1;
             }
           }
           if ((!this.preparsedSentences || this.preparsedSentences.length === 0) && this.currentVideoId && !this.isLoadingSubtitles) {
@@ -42863,7 +43603,11 @@
               if (entry.name && entry.name.includes("/api/timedtext")) {
                 try {
                   const parsed = new URL(entry.name);
-                  const langParam = parsed.searchParams.get("lang") || parsed.searchParams.get("tlang");
+                  const tlangParam = parsed.searchParams.get("tlang");
+                  const langParam = tlangParam || parsed.searchParams.get("lang");
+                  if (langParam && this.isUnwantedAutoTranslatedTrack(langParam)) {
+                    continue;
+                  }
                   if (langParam) {
                     const clean2 = normalizeLangCode(langParam);
                     if (clean2 && clean2 !== this.videoSessionLanguage) {
@@ -42888,103 +43632,7 @@
       } catch (_2) {
       }
       try {
-        const scriptId = "lectura-network-interceptor";
-        if (!document.getElementById(scriptId)) {
-          const script = document.createElement("script");
-          script.id = scriptId;
-          script.textContent = `
-          (function() {
-            function notifyTimedText(lang, url, text) {
-              if (lang) {
-                try {
-                  window.dispatchEvent(new CustomEvent('LECTURA_TIMEDTEXT_LANG', { detail: { lang: lang } }));
-                } catch (_) {}
-              }
-              if (text) {
-                try {
-                  window.dispatchEvent(new CustomEvent('LECTURA_TIMEDTEXT_DATA', { detail: { lang: lang, url: url, text: text } }));
-                } catch (_) {}
-              }
-            }
-
-            // Intercept fetch
-            const origFetch = window.fetch;
-            window.fetch = async function(...args) {
-              const url = typeof args[0] === 'string' ? args[0] : (args[0] && args[0].url);
-              const res = await origFetch.apply(this, args);
-              if (url && typeof url === 'string' && url.includes('/api/timedtext')) {
-                try {
-                  const parsed = new URL(url, window.location.origin);
-                  const lang = parsed.searchParams.get('lang') || parsed.searchParams.get('tlang');
-                  const clone = res.clone();
-                  clone.text().then(text => {
-                    notifyTimedText(lang, url, text);
-                  }).catch(() => notifyTimedText(lang, url, null));
-                } catch (_) {}
-              }
-              return res;
-            };
-
-            // Intercept XMLHttpRequest
-            const origOpen = XMLHttpRequest.prototype.open;
-            XMLHttpRequest.prototype.open = function(method, url) {
-              if (url && typeof url === 'string' && url.includes('/api/timedtext')) {
-                try {
-                  const parsed = new URL(url, window.location.origin);
-                  const lang = parsed.searchParams.get('lang') || parsed.searchParams.get('tlang');
-                  this.addEventListener('load', function() {
-                    notifyTimedText(lang, url, this.responseText);
-                  });
-                } catch (_) {}
-              }
-              return origOpen.apply(this, arguments);
-            };
-            // Bridge captionTracks from MAIN world (movie_player.getPlayerResponse / ytInitialPlayerResponse)
-            function bridgePlayerCaptionTracks(forceEnableCC) {
-              try {
-                const player = document.getElementById('movie_player');
-                const pResp = (player && typeof player.getPlayerResponse === 'function' && player.getPlayerResponse()) || window.ytInitialPlayerResponse;
-                const videoId = pResp && pResp.videoDetails && pResp.videoDetails.videoId;
-                const tracks = pResp && pResp.captions && pResp.captions.playerCaptionsTracklistRenderer && pResp.captions.playerCaptionsTracklistRenderer.captionTracks;
-                if (Array.isArray(tracks) && tracks.length > 0) {
-                  window.dispatchEvent(new CustomEvent('LECTURA_CAPTION_TRACKS', {
-                    detail: {
-                      videoId: videoId || '',
-                      tracks: tracks.map(t => ({
-                        baseUrl: t.baseUrl,
-                        languageCode: t.languageCode,
-                        kind: t.kind
-                      }))
-                    }
-                  }));
-                }
-                // Ensure YouTube's caption module is active so signed timedtext requests fire if needed
-                if (forceEnableCC && player) {
-                  if (typeof player.loadModule === 'function') {
-                    player.loadModule('captions');
-                  }
-                  const ccBtn = document.querySelector('.ytp-subtitles-button');
-                  if (ccBtn && ccBtn.getAttribute('aria-pressed') === 'false') {
-                    ccBtn.click();
-                  }
-                }
-              } catch (_) {}
-            }
-
-            window.addEventListener('LECTURA_REQUEST_CAPTIONS', function(ev) {
-              const forceCC = ev && ev.detail && ev.detail.forceEnableCC;
-              bridgePlayerCaptionTracks(forceCC);
-            });
-            window.addEventListener('yt-navigate-finish', function() {
-              setTimeout(function() { bridgePlayerCaptionTracks(false); }, 300);
-            });
-            setTimeout(function() { bridgePlayerCaptionTracks(false); }, 150);
-          })();
-        `;
-          (document.head || document.documentElement).appendChild(script);
-        } else {
-          window.dispatchEvent(new CustomEvent("LECTURA_REQUEST_CAPTIONS", { detail: { forceEnableCC: false } }));
-        }
+        window.dispatchEvent(new CustomEvent("LECTURA_REQUEST_CAPTIONS", { detail: { forceEnableCC: false } }));
       } catch (_2) {
       }
     }
@@ -42994,15 +43642,17 @@
     resolveVideoLanguage() {
       if (window.__LECTURA_ACTIVE_LANG__) {
         const code = window.__LECTURA_ACTIVE_LANG__;
-        this.videoSessionLanguage = code;
-        this.currentDetectedLanguage = getLanguageDisplayName(code);
-        return code;
+        if (!this.isUnwantedAutoTranslatedTrack(code)) {
+          this.videoSessionLanguage = code;
+          this.currentDetectedLanguage = getLanguageDisplayName(code);
+          return code;
+        }
+        window.__LECTURA_ACTIVE_LANG__ = null;
       }
       try {
         const bridged = window.__LECTURA_BRIDGED_TRACKS__;
         if (bridged && Array.isArray(bridged.tracks) && bridged.tracks.length > 0) {
-          const target = normalizeLangCode(this.settings?.targetLanguage || "");
-          const matched = bridged.tracks.find((t4) => normalizeLangCode(t4.languageCode) === target) || bridged.tracks.find((t4) => t4.isDefault) || bridged.tracks[0];
+          const matched = this.selectBestTrackFromList(bridged.tracks);
           if (matched?.languageCode) {
             const code = normalizeLangCode(matched.languageCode);
             window.__LECTURA_ACTIVE_LANG__ = code;
@@ -43015,25 +43665,6 @@
       } catch (_2) {
       }
       try {
-        const entries = performance.getEntriesByType("resource");
-        for (let i3 = entries.length - 1; i3 >= Math.max(0, entries.length - 15); i3--) {
-          const entry = entries[i3];
-          if (entry.name && entry.name.includes("/api/timedtext")) {
-            const parsed = new URL(entry.name);
-            const langParam = parsed.searchParams.get("lang") || parsed.searchParams.get("tlang");
-            if (langParam) {
-              const code = normalizeLangCode(langParam);
-              window.__LECTURA_ACTIVE_LANG__ = code;
-              window.__LECTURA_YT_TRACK_LANG__ = code;
-              this.videoSessionLanguage = code;
-              this.currentDetectedLanguage = getLanguageDisplayName(code);
-              return code;
-            }
-          }
-        }
-      } catch (_2) {
-      }
-      try {
         for (const s3 of Array.from(document.scripts)) {
           const text = s3.textContent || "";
           if (!text.includes("captionTracks")) continue;
@@ -43041,8 +43672,7 @@
           if (m3 && m3[1]) {
             const tracks = JSON.parse(m3[1]);
             if (Array.isArray(tracks) && tracks.length > 0) {
-              const target = normalizeLangCode(this.settings?.targetLanguage || "");
-              const matched = tracks.find((t4) => normalizeLangCode(t4.languageCode) === target) || tracks.find((t4) => t4.isDefault) || tracks[0];
+              const matched = this.selectBestTrackFromList(tracks);
               if (matched?.languageCode) {
                 const code = normalizeLangCode(matched.languageCode);
                 window.__LECTURA_ACTIVE_LANG__ = code;
@@ -43051,6 +43681,25 @@
                 this.currentDetectedLanguage = getLanguageDisplayName(code);
                 return code;
               }
+            }
+          }
+        }
+      } catch (_2) {
+      }
+      try {
+        const entries = performance.getEntriesByType("resource");
+        for (let i3 = entries.length - 1; i3 >= Math.max(0, entries.length - 15); i3--) {
+          const entry = entries[i3];
+          if (entry.name && entry.name.includes("/api/timedtext")) {
+            const parsed = new URL(entry.name);
+            const langParam = parsed.searchParams.get("tlang") || parsed.searchParams.get("lang");
+            if (langParam && !this.isUnwantedAutoTranslatedTrack(langParam)) {
+              const code = normalizeLangCode(langParam);
+              window.__LECTURA_ACTIVE_LANG__ = code;
+              window.__LECTURA_YT_TRACK_LANG__ = code;
+              this.videoSessionLanguage = code;
+              this.currentDetectedLanguage = getLanguageDisplayName(code);
+              return code;
             }
           }
         }
@@ -43110,6 +43759,15 @@
             for (let i3 = entries.length - 1; i3 >= 0; i3--) {
               const entry = entries[i3];
               if (entry.name && entry.name.includes("/api/timedtext") && entry.name.includes(`v=${videoId}`)) {
+                try {
+                  const parsed = new URL(entry.name);
+                  const tlang = parsed.searchParams.get("tlang");
+                  const entryLang = tlang || parsed.searchParams.get("lang") || "";
+                  if (entryLang && this.isUnwantedAutoTranslatedTrack(entryLang)) {
+                    continue;
+                  }
+                } catch (_2) {
+                }
                 return entry.name;
               }
             }
@@ -43135,6 +43793,10 @@
               sentences = parseXmlIntoCleanSentences(trimmed);
             }
             if (sentences.length > 0) {
+              const sampleText = sentences.slice(0, 5).map((s3) => s3.text).join(" ");
+              if (sampleText && /[\u0600-\u06FF]{3,}/.test(sampleText) && lang !== "ar" && this.isScriptIncompatibleWithVideoTitle("ar")) {
+                return false;
+              }
               this.preparsedSentences = sentences;
               this.currentSentenceIndex = -1;
               this.autoPausedSentenceIndex = -1;
@@ -43153,11 +43815,11 @@
         let signedUrl = findSignedTimedTextUrl();
         if (!signedUrl) {
           try {
-            window.dispatchEvent(new CustomEvent("LECTURA_REQUEST_CAPTIONS", { detail: { forceEnableCC: true } }));
-            const ccBtn = document.querySelector(".ytp-subtitles-button");
-            if (ccBtn && ccBtn.getAttribute("aria-pressed") === "false") {
-              ccBtn.click();
-            }
+            window.dispatchEvent(
+              new CustomEvent("LECTURA_REQUEST_CAPTIONS", {
+                detail: { forceEnableCC: true, preferredLang: lang }
+              })
+            );
             await new Promise((r2) => setTimeout(r2, 450));
             signedUrl = findSignedTimedTextUrl();
           } catch (_2) {
@@ -43170,7 +43832,7 @@
         try {
           const bridged = window.__LECTURA_BRIDGED_TRACKS__;
           if (bridged && Array.isArray(bridged.tracks) && bridged.tracks.length > 0 && (!bridged.videoId || bridged.videoId === videoId)) {
-            const matchingTrack = bridged.tracks.find((t4) => normalizeLangCode(t4.languageCode) === lang) || bridged.tracks.find((t4) => t4.isDefault) || bridged.tracks[0];
+            const matchingTrack = this.selectBestTrackFromList(bridged.tracks, lang);
             if (matchingTrack?.baseUrl) candidateUrls.push(matchingTrack.baseUrl);
           }
         } catch (_2) {
@@ -43183,7 +43845,7 @@
             if (m3 && m3[1]) {
               const tracks = JSON.parse(m3[1]);
               if (Array.isArray(tracks) && tracks.length > 0) {
-                const matchingTrack = tracks.find((t4) => normalizeLangCode(t4.languageCode) === lang) || tracks.find((t4) => t4.isDefault) || tracks[0];
+                const matchingTrack = this.selectBestTrackFromList(tracks, lang);
                 if (matchingTrack?.baseUrl) candidateUrls.push(matchingTrack.baseUrl);
               }
             }
@@ -43243,7 +43905,11 @@
         }
         if ((!this.preparsedSentences || this.preparsedSentences.length === 0) && this.subtitleLoadAttempts <= 1) {
           try {
-            window.dispatchEvent(new CustomEvent("LECTURA_REQUEST_CAPTIONS", { detail: { forceEnableCC: true } }));
+            window.dispatchEvent(
+              new CustomEvent("LECTURA_REQUEST_CAPTIONS", {
+                detail: { forceEnableCC: true, preferredLang: lang }
+              })
+            );
           } catch (_2) {
           }
         }
@@ -44167,6 +44833,7 @@
         <span class="lectura-top-pill-divider"></span>
         <button type="button" class="lectura-sub-tool-btn ${this.autoPauseAfterSubtitle ? "active" : ""}" data-action="autopause" title="${t3("auto_pause_sub_hint", uiLang)}">\u23F8 Q</button>
         <button type="button" class="lectura-sub-tool-btn ${this.subtitleBlurMode !== "off" ? "active" : ""}" data-action="blur" title="Blur Mode [H]">\u{1F441} H</button>
+        <button type="button" class="lectura-sub-tool-btn ${this.isSentenceShadowingActive ? "active" : ""}" data-action="shadowing" title="${uiLang === "ru" ? "\u041F\u0440\u043E\u0432\u0435\u0440\u043A\u0430 \u043F\u0440\u043E\u0438\u0437\u043D\u043E\u0448\u0435\u043D\u0438\u044F \u0444\u0440\u0430\u0437\u044B (Shadowing) [M]" : "Sentence Shadowing / Pronunciation Check [M]"}">\u{1F399}\uFE0F M</button>
         <span class="lectura-top-pill-divider"></span>
         <button type="button" class="lectura-sub-tool-btn ${this.showTranscriptSidebar ? "active" : ""}" data-action="transcript" title="${t3("transcript_panel", uiLang)} [T]">
           <span>\u{1F4DC} ${t3("transcript_panel", uiLang)}</span>
@@ -44513,6 +45180,8 @@
      */
     closeWordCard() {
       this.hideHoverTooltip();
+      this.stopActivePronunciationSession();
+      revokeLastRecordedAudio();
       if (this.translationAbortController) {
         this.translationAbortController.abort();
         this.translationAbortController = null;
@@ -45161,8 +45830,10 @@
             ` : ""}
             <span class="glass-lang-tag lectura-card-dialect-badge" title="Dialect: ${currentDialect.name} (${currentDialect.code})">${activeLang} | ${dialectLabel}</span>
             <button type="button" class="glass-btn-sound lectura-card-tts" title="Audio">\u{1F50A}</button>
+            <button type="button" class="glass-btn-sound lectura-card-mic" title="${uiLang === "ru" ? "\u041F\u0440\u043E\u0432\u0435\u0440\u0438\u0442\u044C \u043F\u0440\u043E\u0438\u0437\u043D\u043E\u0448\u0435\u043D\u0438\u0435 [M]" : "Check pronunciation [M]"}">\u{1F399}\uFE0F</button>
           </div>
         </div>
+        <div class="lectura-card-pron-box" style="display: none;"></div>
 
         <!-- Tab Pane: Meaning -->
         <div class="glass-tab-pane active" data-pane="meaning">
@@ -45272,11 +45943,12 @@
               <span>\u{1F331}</span> Base Root & Morphology:
             </div>
 
-            <div class="root-input-action-row" style="display: flex; gap: 8px; margin-bottom: 10px;">
+            <div class="root-input-action-row" style="display: flex; gap: 8px; margin-bottom: 10px; position: relative;">
               <div class="root-input-box" style="flex: 1; display: flex; align-items: center; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 4px 8px; gap: 6px;">
                 <span>\u{1F517}</span>
                 <input 
                   type="text" 
+                  autocomplete="off"
                   placeholder="${t3("base_root_placeholder", uiLang)}" 
                   class="calm-root-field lectura-lemma-input"
                   id="root-input-field"
@@ -45285,6 +45957,7 @@
                 />
               </div>
               <button type="button" class="btn-link calm-btn-link lectura-lemma-btn-link" id="btn-link-root" style="background: #2563eb; color: #ffffff; border: none; border-radius: 8px; padding: 6px 14px; font-size: 12.5px; font-weight: 600; cursor: pointer;">${t3("btn_link", uiLang)}</button>
+              <div class="lectura-root-live-dropdown" style="display: none;"></div>
             </div>
 
             <!-- Suggestions -->
@@ -45344,8 +46017,10 @@
                 ` : ""}
                 <button type="button" class="lectura-dialect-pill lectura-card-dialect-badge" title="Dialect: ${currentDialect.name} (${currentDialect.code})">${activeLang} | ${dialectLabel}</button>
                 <button type="button" class="lectura-card-tts" title="Pronounce">\u{1F50A}</button>
+                <button type="button" class="lectura-card-mic" title="${uiLang === "ru" ? "\u041F\u0440\u043E\u0432\u0435\u0440\u0438\u0442\u044C \u043F\u0440\u043E\u0438\u0437\u043D\u043E\u0448\u0435\u043D\u0438\u0435 [M]" : "Check pronunciation [M]"}">\u{1F399}\uFE0F</button>
               </div>
             </div>
+            <div class="lectura-card-pron-box" style="display: none;"></div>
 
             <!-- Primary Translation & Secondary Synonyms -->
             <div class="lectura-card-translation">${initialTranslationHtml}</div>
@@ -45469,10 +46144,11 @@
             </div>
 
             <div class="lectura-extended-tools-card">
-              <div class="lectura-lemma-input-row">
+              <div class="lectura-lemma-input-row" style="position: relative;">
                 <span class="lectura-lemma-icon">\u{1F517}</span>
-                <input type="text" class="lectura-lemma-input" placeholder="Base root (e.g. ${suggestedLemmas[0] || "root"})..." value="${existingParent}" />
+                <input type="text" autocomplete="off" class="lectura-lemma-input" placeholder="Base root (e.g. ${suggestedLemmas[0] || "root"})..." value="${existingParent}" />
                 <button type="button" class="lectura-lemma-btn-link" title="Link to base root">Link</button>
+                <div class="lectura-root-live-dropdown" style="display: none;"></div>
               </div>
               <div class="lectura-card-dict-bar" style="margin-top: 0; padding-top: 0; border-top: none;">
                 <a href="${dictUrls.cambridge}" target="_blank" rel="noopener noreferrer" class="lectura-dict-btn" title="Open Cambridge">Cambridge \u2197</a>
@@ -45487,6 +46163,7 @@
           <div class="lectura-card-header-left">
             <span class="lectura-card-word">${word}</span>
             <button class="lectura-card-tts" title="Pronounce">\u{1F50A}</button>
+            <button type="button" class="lectura-card-mic" title="${uiLang === "ru" ? "\u041F\u0440\u043E\u0432\u0435\u0440\u0438\u0442\u044C \u043F\u0440\u043E\u0438\u0437\u043D\u043E\u0448\u0435\u043D\u0438\u0435 [M]" : "Check pronunciation [M]"}">\u{1F399}\uFE0F</button>
             <button type="button" class="lectura-card-ai-btn" title="Explain with AI" style="background: linear-gradient(135deg, #0284c7, #4f46e5); color: white; border: none; border-radius: 4px; padding: 2px 7px; font-size: 11px; font-weight: 700; cursor: pointer; margin-left: 4px;">\u2728 AI</button>
             <button class="lectura-card-dialect-badge" title="Dialect: ${currentDialect.name} (${currentDialect.code})">${dialectLabel}</button>
             ${wordInfo.isAutoIgnored ? `
@@ -45501,6 +46178,7 @@
           </div>
           <button class="lectura-card-close" title="Close (Esc)">\u2715</button>
         </div>
+        <div class="lectura-card-pron-box" style="display: none;"></div>
         <div class="lectura-card-translation">${initialTranslationHtml}</div>
 
         <!-- Compact AI Breakdown Drawer -->
@@ -45542,10 +46220,11 @@
 
         <!-- Lemma Selection / Linking Section -->
         <div class="lectura-card-lemma-section">
-          <div class="lectura-lemma-input-row">
+          <div class="lectura-lemma-input-row" style="position: relative;">
             <span class="lectura-lemma-icon">\u{1F517}</span>
-            <input type="text" class="lectura-lemma-input" placeholder="Base root (e.g. ${suggestedLemmas[0] || "root"})..." value="${existingParent}" />
+            <input type="text" autocomplete="off" class="lectura-lemma-input" placeholder="Base root (e.g. ${suggestedLemmas[0] || "root"})..." value="${existingParent}" />
             <button type="button" class="lectura-lemma-btn-link" title="Link to base root">Link</button>
+            <div class="lectura-root-live-dropdown" style="display: none;"></div>
           </div>
           ${suggestedLemmas.length > 0 ? `
             <div class="lectura-lemma-chips">
@@ -45689,8 +46368,8 @@
             this.updateFloatingPillAndTranscript();
             const currentRootEl = this.popupCard?.querySelector(".current-root-name, #current-root-name");
             if (currentRootEl) currentRootEl.textContent = cleanParent;
-            const lemmaInput2 = this.popupCard?.querySelector(".lectura-lemma-input, #root-input-field");
-            if (lemmaInput2) lemmaInput2.value = cleanParent;
+            const lemmaInput = this.popupCard?.querySelector(".lectura-lemma-input, #root-input-field");
+            if (lemmaInput) lemmaInput.value = cleanParent;
             this.showToast(`\u2713 Linked "${word}" \u2794 "${cleanParent}"`, "success");
           } catch (err) {
             this.showToast(`Failed to link: ${err?.message || "Error"}`, "error");
@@ -45704,8 +46383,8 @@
               const input = this.popupCard?.querySelector(".lectura-lemma-input, #root-input-field, .glass-root-input, .calm-root-field");
               if (input) {
                 input.value = targetLemma;
-                input.focus();
               }
+              linkLemma(targetLemma);
             }
           });
         });
@@ -45716,18 +46395,17 @@
             if (input?.value) linkLemma(input.value);
           });
         });
-        const lemmaInput = this.popupCard.querySelector(".lectura-lemma-input, #root-input-field, .glass-root-input, .calm-root-field");
-        lemmaInput?.addEventListener("keydown", (e2) => {
-          if (e2.key === "Enter") {
-            e2.preventDefault();
-            e2.stopPropagation();
-            if (lemmaInput.value) linkLemma(lemmaInput.value);
-          }
-        });
-        this.popupCard.querySelectorAll(".lectura-card-tts, .glass-btn-sound").forEach((btn) => {
+        this.setupBaseRootLiveSearch(word, langCode, linkLemma);
+        this.popupCard.querySelectorAll(".lectura-card-tts").forEach((btn) => {
           btn.addEventListener("click", (e2) => {
             e2.stopPropagation();
             this.playTts(word, currentDialect.code);
+          });
+        });
+        this.popupCard.querySelectorAll(".lectura-card-mic").forEach((btn) => {
+          btn.addEventListener("click", (e2) => {
+            e2.stopPropagation();
+            this.startCardPronunciationCheck(word, currentDialect.code);
           });
         });
         this.popupCard.querySelectorAll(".lectura-card-dialect-badge, .lectura-dialect-pill, .glass-lang-tag").forEach((btn) => {
@@ -45757,17 +46435,25 @@
           });
         });
         const meaningInputEl = this.popupCard.querySelector(".calm-meaning-input, .lectura-meaning-input");
-        meaningInputEl?.addEventListener("keydown", async (e2) => {
+        const handleMeaningKey = async (rawEv) => {
+          const e2 = rawEv.detail || rawEv;
           if (e2.key === "Enter") {
-            e2.preventDefault();
-            e2.stopPropagation();
+            e2.preventDefault?.();
+            e2.stopPropagation?.();
+            if (!meaningInputEl) return;
             const customTrans = meaningInputEl.value.trim();
             const activeStatusBtn = this.popupCard?.querySelector("[data-status].active");
             const statusToSave = activeStatusBtn?.getAttribute("data-status") || (wordInfo.status && wordInfo.status !== "new" && wordInfo.status !== "0" ? wordInfo.status : "1");
             await this.saveWordToLectura(word, customTrans, statusToSave, contextSentence);
             this.closeWordCard();
+          } else if (e2.key === "Escape") {
+            e2.preventDefault?.();
+            e2.stopPropagation?.();
+            meaningInputEl?.blur();
           }
-        });
+        };
+        meaningInputEl?.addEventListener("keydown", handleMeaningKey);
+        meaningInputEl?.addEventListener("lectura-input-keydown", handleMeaningKey);
         console.log("[Lectura Debug] Word clicked:", word);
         if (!readyTranslation) {
           console.log("[Lectura Debug] Translation request starting for:", word);
@@ -46103,12 +46789,28 @@
         const ccBtn = document.querySelector(".ytp-subtitles-button");
         if (ccBtn && ccBtn.getAttribute("aria-pressed") === "false") {
           try {
-            ccBtn.click();
+            window.dispatchEvent(
+              new CustomEvent("LECTURA_REQUEST_CAPTIONS", {
+                detail: { forceEnableCC: true, preferredLang: this.getEffectiveLang() }
+              })
+            );
           } catch (_2) {
           }
         }
         const domSegments = Array.from(document.querySelectorAll(".ytp-caption-segment")).map((el) => el.textContent?.trim() || "").filter(Boolean);
         const domText = deduplicateSubtitleSegments(domSegments);
+        const effectiveLang = this.getEffectiveLang();
+        if (domText && /[\u0600-\u06FF]{2,}/.test(domText) && effectiveLang !== "ar" && this.isScriptIncompatibleWithVideoTitle("ar")) {
+          try {
+            window.dispatchEvent(
+              new CustomEvent("LECTURA_REQUEST_CAPTIONS", {
+                detail: { forceEnableCC: true, preferredLang: effectiveLang }
+              })
+            );
+          } catch (_2) {
+          }
+          return;
+        }
         if (domText && domText !== this.currentSubtitleText) {
           this.currentSubtitleText = domText;
           this.renderSubtitleTokens(domText);
@@ -46203,9 +46905,229 @@
         startLoop();
       }
     }
+    getRootSearchCandidates(langCode) {
+      const list4 = /* @__PURE__ */ new Map();
+      const translations = /* @__PURE__ */ new Map();
+      const normLang = normalizeLangCode(langCode);
+      const vocab = this.cachedWordsByLang[normLang] || {};
+      for (const [key, item] of Object.entries(vocab)) {
+        if (!key || !item) continue;
+        const cleanKey = key.replace(/^[a-zA-Z]+_/, "").trim();
+        if (!cleanKey) continue;
+        const wLower = cleanKey.toLowerCase();
+        list4.set(wLower, cleanKey);
+        const rawTrans = (item.translation || "").trim();
+        if (rawTrans) {
+          const firstLine = rawTrans.split("\n")[0].trim();
+          translations.set(wLower, firstLine);
+        } else if (item.status === "ignored" || item.status === "0") {
+          translations.set(wLower, "[Ignored]");
+        } else if (item.status === "known") {
+          translations.set(wLower, "[Known]");
+        }
+      }
+      const wordLinks = this.cachedWordLinksByLang[normLang] || {};
+      for (const [child, parent] of Object.entries(wordLinks)) {
+        const cleanChild = (child || "").replace(/^[a-zA-Z]+_/, "").trim();
+        const cleanParent = (parent || "").replace(/^[a-zA-Z]+_/, "").trim();
+        if (cleanChild && !list4.has(cleanChild.toLowerCase())) {
+          list4.set(cleanChild.toLowerCase(), cleanChild);
+        }
+        if (cleanParent && !list4.has(cleanParent.toLowerCase())) {
+          list4.set(cleanParent.toLowerCase(), cleanParent);
+        }
+      }
+      const tokenRegex = /[\p{L}\p{M}'’]+/gu;
+      if (this.preparsedSentences && this.preparsedSentences.length > 0) {
+        for (const s3 of this.preparsedSentences) {
+          if (!s3?.text) continue;
+          const tokens = s3.text.match(tokenRegex) || [];
+          for (const tok of tokens) {
+            const clean2 = tok.trim();
+            if (clean2.length > 1) {
+              const low = clean2.toLowerCase();
+              if (!list4.has(low)) {
+                list4.set(low, clean2);
+              }
+            }
+          }
+        }
+      }
+      return Array.from(list4.entries()).map(([lower, original]) => ({
+        lower,
+        original,
+        translation: translations.get(lower) || ""
+      }));
+    }
+    setupBaseRootLiveSearch(word, langCode, linkLemma) {
+      if (!this.popupCard) return;
+      const lemmaInput = this.popupCard.querySelector(
+        ".lectura-lemma-input, #root-input-field, .glass-root-input, .calm-root-field"
+      );
+      const dropdown = this.popupCard.querySelector(".lectura-root-live-dropdown");
+      if (!lemmaInput || !dropdown) return;
+      const candidates = this.getRootSearchCandidates(langCode);
+      const currentWordLower = word.trim().toLowerCase();
+      let filteredResults = [];
+      let highlightedIdx = -1;
+      const hideDropdown = () => {
+        dropdown.style.display = "none";
+        dropdown.innerHTML = "";
+        filteredResults = [];
+        highlightedIdx = -1;
+      };
+      const renderDropdown = () => {
+        const query = lemmaInput.value.trim().toLowerCase();
+        if (!query) {
+          hideDropdown();
+          return;
+        }
+        filteredResults = candidates.filter((c2) => c2.lower.includes(query) && c2.lower !== currentWordLower).sort((a2, b) => {
+          const aStarts = a2.lower.startsWith(query);
+          const bStarts = b.lower.startsWith(query);
+          if (aStarts && !bStarts) return -1;
+          if (!aStarts && bStarts) return 1;
+          return a2.lower.localeCompare(b.lower, langCode || "es", { sensitivity: "base" });
+        }).slice(0, 50);
+        if (filteredResults.length === 0) {
+          hideDropdown();
+          return;
+        }
+        if (highlightedIdx >= filteredResults.length) {
+          highlightedIdx = 0;
+        }
+        dropdown.innerHTML = filteredResults.map(
+          (res, idx) => `
+          <button
+            type="button"
+            class="lectura-root-dropdown-item ${idx === highlightedIdx ? "active" : ""}"
+            data-root-idx="${idx}"
+            data-root-val="${this.escapeHtml(res.lower)}"
+          >
+            <span class="lectura-root-item-word">${this.escapeHtml(res.original)}</span>
+            ${res.translation ? `<span class="lectura-root-item-meta">${this.escapeHtml(res.translation)}</span>` : ""}
+          </button>
+        `
+        ).join("");
+        dropdown.style.display = "block";
+        dropdown.querySelectorAll(".lectura-root-dropdown-item").forEach((itemEl) => {
+          itemEl.addEventListener("mousedown", (ev) => {
+            ev.preventDefault();
+            ev.stopPropagation();
+            const val = itemEl.getAttribute("data-root-val") || "";
+            if (val) {
+              lemmaInput.value = val;
+              hideDropdown();
+              linkLemma(val);
+            }
+          });
+        });
+      };
+      const updateHighlight = () => {
+        const items = dropdown.querySelectorAll(".lectura-root-dropdown-item");
+        items.forEach((el, idx) => {
+          if (idx === highlightedIdx) {
+            el.classList.add("active");
+            el.scrollIntoView({ block: "nearest" });
+          } else {
+            el.classList.remove("active");
+          }
+        });
+      };
+      lemmaInput.addEventListener("input", () => {
+        highlightedIdx = -1;
+        renderDropdown();
+      });
+      lemmaInput.addEventListener("focus", () => {
+        if (lemmaInput.value.trim()) {
+          renderDropdown();
+        }
+      });
+      lemmaInput.addEventListener("blur", () => {
+        window.setTimeout(() => hideDropdown(), 150);
+      });
+      const handleKey = (rawEv) => {
+        const e2 = rawEv.detail || rawEv;
+        if (e2.key === "ArrowDown") {
+          if (filteredResults.length > 0) {
+            e2.preventDefault?.();
+            e2.stopPropagation?.();
+            highlightedIdx = (highlightedIdx + 1) % filteredResults.length;
+            updateHighlight();
+          }
+        } else if (e2.key === "ArrowUp") {
+          if (filteredResults.length > 0) {
+            e2.preventDefault?.();
+            e2.stopPropagation?.();
+            highlightedIdx = highlightedIdx <= 0 ? filteredResults.length - 1 : highlightedIdx - 1;
+            updateHighlight();
+          }
+        } else if (e2.key === "Enter") {
+          e2.preventDefault?.();
+          e2.stopPropagation?.();
+          if (highlightedIdx >= 0 && highlightedIdx < filteredResults.length) {
+            const chosen = filteredResults[highlightedIdx].lower;
+            lemmaInput.value = chosen;
+            hideDropdown();
+            linkLemma(chosen);
+          } else if (lemmaInput.value.trim()) {
+            hideDropdown();
+            linkLemma(lemmaInput.value.trim());
+          }
+        } else if (e2.key === "Escape") {
+          e2.preventDefault?.();
+          e2.stopPropagation?.();
+          if (dropdown.style.display !== "none") {
+            hideDropdown();
+          } else {
+            lemmaInput.blur();
+          }
+        }
+      };
+      lemmaInput.addEventListener("keydown", handleKey);
+      lemmaInput.addEventListener("lectura-input-keydown", handleKey);
+    }
+    getFocusedExtensionInput(e2) {
+      const path = e2.composedPath ? e2.composedPath() : [];
+      for (const node of path) {
+        if (node && node instanceof HTMLElement) {
+          if ((["INPUT", "TEXTAREA", "SELECT"].includes(node.tagName) || node.isContentEditable) && (this.shadowRoot && this.shadowRoot.contains(node) || this.sidebarShadowRoot && this.sidebarShadowRoot.contains(node))) {
+            return node;
+          }
+        }
+      }
+      const activeShadow = this.shadowRoot?.activeElement;
+      if (activeShadow && (["INPUT", "TEXTAREA", "SELECT"].includes(activeShadow.tagName) || activeShadow.isContentEditable)) {
+        return activeShadow;
+      }
+      const activeSidebar = this.sidebarShadowRoot?.activeElement;
+      if (activeSidebar && (["INPUT", "TEXTAREA", "SELECT"].includes(activeSidebar.tagName) || activeSidebar.isContentEditable)) {
+        return activeSidebar;
+      }
+      return null;
+    }
     setupKeyboardShortcuts() {
+      const shieldExtensionInputs = (e2) => {
+        const extInput = this.getFocusedExtensionInput(e2);
+        if (extInput) {
+          if (e2.type === "keydown") {
+            extInput.dispatchEvent(new CustomEvent("lectura-input-keydown", { detail: e2 }));
+          }
+          e2.stopPropagation();
+          e2.stopImmediatePropagation();
+        }
+      };
+      window.addEventListener("keypress", shieldExtensionInputs, { capture: true });
+      window.addEventListener("keyup", shieldExtensionInputs, { capture: true });
       window.addEventListener("keydown", (e2) => {
         if (this.settings?.isEnabled === false || this.settings?.enableYoutubeOverlay === false) {
+          return;
+        }
+        const extInput = this.getFocusedExtensionInput(e2);
+        if (extInput) {
+          extInput.dispatchEvent(new CustomEvent("lectura-input-keydown", { detail: e2 }));
+          e2.stopPropagation();
+          e2.stopImmediatePropagation();
           return;
         }
         const target = e2.target;
@@ -46252,6 +47174,11 @@
             this.closeWordCard();
             return;
           }
+          if (key === "M") {
+            e2.preventDefault();
+            this.startCardPronunciationCheck(this.activeWordData.word, this.getTtsLanguageCode());
+            return;
+          }
         }
         if (!this.videoElement || !this.currentVideoId) return;
         if (!e2.altKey && (e2.key === "[" || e2.code === "BracketLeft")) {
@@ -46289,6 +47216,11 @@
           this.toggleTranscriptSidebar();
           return;
         }
+        if (key === "M") {
+          e2.preventDefault();
+          this.triggerSentenceShadowing();
+          return;
+        }
         if (key === "A") {
           e2.preventDefault();
           this.jumpToPreviousCue();
@@ -46300,6 +47232,302 @@
           this.replayCurrentCue();
         }
       }, { capture: true });
+    }
+    stopActivePronunciationSession() {
+      if (this.activePronSession) {
+        this.activePronSession.stop();
+        this.activePronSession = null;
+      }
+      if (this.activeRecordingAudioPlayer) {
+        this.activeRecordingAudioPlayer.pause();
+        this.activeRecordingAudioPlayer = null;
+      }
+      this.isSentenceShadowingActive = false;
+      this.popupCard?.querySelectorAll(".lectura-card-mic").forEach((btn) => btn.classList.remove("listening"));
+      this.updateFloatingPillAndTranscript();
+    }
+    renderPronunciationEvaluationHtml(targetText, locale, evaluation, isShadowingBar = false) {
+      const uiLang = this.settings?.interfaceLanguage || "en";
+      const isRu = uiLang === "ru";
+      const score = evaluation.overallScore;
+      const scoreColor = score >= 80 ? "#10b981" : score >= 50 ? "#f59e0b" : "#f43f5e";
+      const badgeLabel = score >= 85 ? isRu ? "\u041E\u0442\u043B\u0438\u0447\u043D\u043E! \u{1F389}" : "Excellent! \u{1F389}" : score >= 60 ? isRu ? "\u0425\u043E\u0440\u043E\u0448\u043E \u{1F44D}" : "Good \u{1F44D}" : isRu ? "\u041F\u043E\u043F\u0440\u043E\u0431\u0443\u0439\u0442\u0435 \u0435\u0449\u0451 \u0440\u0430\u0437 \u{1F3AF}" : "Try again \u{1F3AF}";
+      const chipsHtml = evaluation.words.map((w) => {
+        const icon = w.status === "good" ? "\u{1F7E2}" : w.status === "fair" ? "\u{1F7E1}" : "\u{1F534}";
+        const tip = w.spokenWord ? `${isRu ? "\u0412\u044B \u0441\u043A\u0430\u0437\u0430\u043B\u0438" : "You said"}: "${this.escapeHtml(w.spokenWord)}" (${w.similarity}%)` : isRu ? "\u041F\u0440\u043E\u043F\u0443\u0449\u0435\u043D\u043E" : "Missed";
+        return `<span class="pron-word-chip ${w.status}" title="${tip}">${icon} ${this.escapeHtml(w.word)}</span>`;
+      }).join("");
+      const myVoiceBtn = evaluation.audioBlobUrl ? `<button type="button" class="pron-act-btn" data-pron-act="play-my">\u25B6\uFE0F ${isRu ? "\u041C\u043E\u044F \u0437\u0430\u043F\u0438\u0441\u044C" : "My Voice"}</button>` : "";
+      return `
+      <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 14px; font-weight: 800; color: ${scoreColor};">${score}%</span>
+          <span style="font-size: 12px; font-weight: 700;">${badgeLabel}</span>
+        </div>
+        <button type="button" class="pron-act-btn" data-pron-act="close" style="padding: 2px 7px; font-size: 11px;">\u2715</button>
+      </div>
+      <div style="display: flex; flex-wrap: wrap; align-items: center; margin-bottom: 6px;">
+        ${chipsHtml}
+      </div>
+      ${evaluation.transcript ? `<div style="font-size: 11px; opacity: 0.78; margin-bottom: 8px;">\u{1F399}\uFE0F ${isRu ? "\u0420\u0430\u0441\u043F\u043E\u0437\u043D\u0430\u043D\u043E" : "Heard"}: \xAB<span style="font-style: italic;">${this.escapeHtml(evaluation.transcript)}</span>\xBB</div>` : ""}
+      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 6px;">
+        ${myVoiceBtn}
+        <button type="button" class="pron-act-btn" data-pron-act="play-native">\u{1F50A} ${isRu ? "\u041E\u0440\u0438\u0433\u0438\u043D\u0430\u043B" : "Native"}</button>
+        <button type="button" class="pron-act-btn" data-pron-act="retry">\u{1F504} ${isRu ? "\u0415\u0449\u0451 \u0440\u0430\u0437" : "Retry"}</button>
+        ${isShadowingBar ? `<button type="button" class="pron-act-btn" data-pron-act="resume" style="margin-left: auto; border-color: rgba(16, 185, 129, 0.5); color: #34d399;">\u25B6\uFE0F ${isRu ? "\u0414\u0430\u043B\u044C\u0448\u0435" : "Continue"}</button>` : ""}
+      </div>
+    `;
+    }
+    bindPronunciationBoxActions(container, targetText, locale, evaluation, onRetry, onClose) {
+      container.querySelector('[data-pron-act="play-my"]')?.addEventListener("click", (e2) => {
+        e2.stopPropagation();
+        if (!evaluation.audioBlobUrl) return;
+        if (this.activeRecordingAudioPlayer) {
+          this.activeRecordingAudioPlayer.pause();
+        }
+        const audio = new Audio(evaluation.audioBlobUrl);
+        this.activeRecordingAudioPlayer = audio;
+        audio.play().catch(() => {
+        });
+      });
+      container.querySelector('[data-pron-act="play-native"]')?.addEventListener("click", (e2) => {
+        e2.stopPropagation();
+        this.playTts(targetText, locale);
+      });
+      container.querySelector('[data-pron-act="retry"]')?.addEventListener("click", (e2) => {
+        e2.stopPropagation();
+        onRetry();
+      });
+      container.querySelector('[data-pron-act="close"]')?.addEventListener("click", (e2) => {
+        e2.stopPropagation();
+        onClose();
+      });
+      container.querySelector('[data-pron-act="resume"]')?.addEventListener("click", (e2) => {
+        e2.stopPropagation();
+        onClose();
+        if (this.videoElement && this.videoElement.paused) {
+          this.videoElement.play().catch(() => {
+          });
+        }
+      });
+    }
+    startCardPronunciationCheck(word, locale) {
+      if (!this.popupCard) return;
+      const pronBox = this.popupCard.querySelector(".lectura-card-pron-box");
+      const micBtns = this.popupCard.querySelectorAll(".lectura-card-mic");
+      if (!pronBox) return;
+      if (this.activePronSession) {
+        this.activePronSession.stop();
+        return;
+      }
+      if (this.videoElement && !this.videoElement.paused) {
+        this.videoElement.pause();
+      }
+      const uiLang = this.settings?.interfaceLanguage || "en";
+      const isRu = uiLang === "ru";
+      const serverBaseUrl = (this.settings?.serverUrl || "http://localhost:3000").replace(/\/+$/, "");
+      micBtns.forEach((b) => b.classList.add("listening"));
+      pronBox.style.display = "block";
+      pronBox.innerHTML = `
+      <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: #ef4444; box-shadow: 0 0 8px #ef4444;"></span>
+          <span style="font-weight: 700;">\u{1F399}\uFE0F ${isRu ? "\u0413\u043E\u0432\u043E\u0440\u0438\u0442\u0435:" : "Speak:"} \xAB${this.escapeHtml(word)}\xBB...</span>
+        </div>
+        <button type="button" class="pron-act-btn" data-pron-act="stop">\u23F9 ${isRu ? "\u0421\u0442\u043E\u043F" : "Stop"}</button>
+      </div>
+      <div class="pron-interim-text" style="font-size: 11.5px; opacity: 0.75; margin-top: 4px; font-style: italic;"></div>
+    `;
+      pronBox.querySelector('[data-pron-act="stop"]')?.addEventListener("click", (e2) => {
+        e2.stopPropagation();
+        this.activePronSession?.stop();
+      });
+      const session = new PronunciationRecorderSession(
+        word,
+        locale || this.getEffectiveLang(),
+        {
+          onInterim: (text) => {
+            const el = pronBox.querySelector(".pron-interim-text");
+            if (el) el.textContent = `\xAB${text}\xBB`;
+          },
+          onEvaluating: () => {
+            micBtns.forEach((b) => b.classList.remove("listening"));
+            pronBox.innerHTML = `<div style="font-weight: 600; color: #38bdf8;">\u23F3 ${isRu ? "\u041E\u0446\u0435\u043D\u0438\u0432\u0430\u0435\u043C \u043F\u0440\u043E\u0438\u0437\u043D\u043E\u0448\u0435\u043D\u0438\u0435..." : "Evaluating pronunciation..."}</div>`;
+          },
+          onResult: (evaluation) => {
+            this.activePronSession = null;
+            micBtns.forEach((b) => b.classList.remove("listening"));
+            pronBox.innerHTML = this.renderPronunciationEvaluationHtml(word, locale, evaluation, false);
+            this.bindPronunciationBoxActions(
+              pronBox,
+              word,
+              locale,
+              evaluation,
+              () => this.startCardPronunciationCheck(word, locale),
+              () => {
+                pronBox.style.display = "none";
+                pronBox.innerHTML = "";
+                revokeLastRecordedAudio();
+              }
+            );
+          },
+          onError: (msg) => {
+            this.activePronSession = null;
+            micBtns.forEach((b) => b.classList.remove("listening"));
+            pronBox.innerHTML = `
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; color: #fb7185;">
+              <span>\u26A0\uFE0F ${this.escapeHtml(msg)}</span>
+              <button type="button" class="pron-act-btn" data-pron-act="retry">\u{1F504} ${isRu ? "\u041F\u043E\u0432\u0442\u043E\u0440\u0438\u0442\u044C" : "Retry"}</button>
+            </div>
+          `;
+            pronBox.querySelector('[data-pron-act="retry"]')?.addEventListener("click", (e2) => {
+              e2.stopPropagation();
+              this.startCardPronunciationCheck(word, locale);
+            });
+          }
+        },
+        serverBaseUrl,
+        uiLang
+      );
+      this.activePronSession = session;
+      session.start();
+    }
+    highlightSubtitleTokensByEvaluation(evaluation) {
+      if (!this.subtitleBox) return;
+      const tokens = Array.from(this.subtitleBox.querySelectorAll(".lectura-word-token, .lectura-token"));
+      tokens.forEach((tok, idx) => {
+        tok.classList.remove("pron-good", "pron-fair", "pron-poor");
+        const evalWord = evaluation.words[idx];
+        if (evalWord) {
+          tok.classList.add(`pron-${evalWord.status}`);
+        }
+      });
+    }
+    clearSubtitlePronunciationHighlights() {
+      if (!this.subtitleBox) return;
+      this.subtitleBox.querySelectorAll(".pron-good, .pron-fair, .pron-poor").forEach((tok) => {
+        tok.classList.remove("pron-good", "pron-fair", "pron-poor");
+      });
+    }
+    triggerSentenceShadowing() {
+      if (!this.shadowingBox) return;
+      if (this.activePronSession) {
+        this.activePronSession.stop();
+        return;
+      }
+      const sentenceText = this.currentSentenceIndex >= 0 && this.preparsedSentences[this.currentSentenceIndex]?.text || this.currentSubtitleText || "";
+      const cleanSentence = sentenceText.replace(/\s+/g, " ").trim();
+      const uiLang = this.settings?.interfaceLanguage || "en";
+      const isRu = uiLang === "ru";
+      if (!cleanSentence) {
+        this.showToast(isRu ? "\u041D\u0435\u0442 \u0430\u043A\u0442\u0438\u0432\u043D\u043E\u0439 \u0444\u0440\u0430\u0437\u044B \u0441\u0443\u0431\u0442\u0438\u0442\u0440\u043E\u0432 \u0434\u043B\u044F \u043F\u0440\u043E\u0432\u0435\u0440\u043A\u0438 \u043F\u0440\u043E\u0438\u0437\u043D\u043E\u0448\u0435\u043D\u0438\u044F" : "No active subtitle sentence to shadow", "info");
+        return;
+      }
+      if (this.videoElement && !this.videoElement.paused) {
+        this.videoElement.pause();
+      }
+      this.clearSubtitlePronunciationHighlights();
+      this.isSentenceShadowingActive = true;
+      this.updateFloatingPillAndTranscript();
+      const locale = this.getTtsLanguageCode();
+      const serverBaseUrl = (this.settings?.serverUrl || "http://localhost:3000").replace(/\/+$/, "");
+      this.shadowingBox.style.display = "block";
+      this.shadowingBox.innerHTML = `
+      <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #ef4444; box-shadow: 0 0 10px #ef4444;"></span>
+          <span style="font-weight: 700; font-size: 13px;">\u{1F399}\uFE0F ${isRu ? "\u041F\u043E\u0432\u0442\u043E\u0440\u0438\u0442\u0435 \u0444\u0440\u0430\u0437\u0443 \u0432\u0441\u043B\u0443\u0445 (Shadowing)..." : "Repeat the sentence aloud (Shadowing)..."}</span>
+        </div>
+        <div style="display: flex; gap: 6px;">
+          <button type="button" class="pron-act-btn" data-pron-act="stop">\u23F9 ${isRu ? "\u0413\u043E\u0442\u043E\u0432\u043E" : "Done"}</button>
+          <button type="button" class="pron-act-btn" data-pron-act="cancel">\u2715</button>
+        </div>
+      </div>
+      <div style="margin-top: 6px; font-size: 13px; color: #bae6fd; font-weight: 600;">\xAB${this.escapeHtml(cleanSentence)}\xBB</div>
+      <div class="pron-interim-text" style="font-size: 12px; color: #94a3b8; margin-top: 4px; font-style: italic;"></div>
+    `;
+      this.shadowingBox.querySelector('[data-pron-act="stop"]')?.addEventListener("click", (e2) => {
+        e2.stopPropagation();
+        this.activePronSession?.stop();
+      });
+      this.shadowingBox.querySelector('[data-pron-act="cancel"]')?.addEventListener("click", (e2) => {
+        e2.stopPropagation();
+        this.stopActivePronunciationSession();
+        this.clearSubtitlePronunciationHighlights();
+        if (this.shadowingBox) {
+          this.shadowingBox.style.display = "none";
+          this.shadowingBox.innerHTML = "";
+        }
+        revokeLastRecordedAudio();
+      });
+      const session = new PronunciationRecorderSession(
+        cleanSentence,
+        locale || this.getEffectiveLang(),
+        {
+          onInterim: (text) => {
+            const el = this.shadowingBox?.querySelector(".pron-interim-text");
+            if (el) el.textContent = `\u{1F399}\uFE0F \xAB${text}\xBB`;
+          },
+          onEvaluating: () => {
+            if (this.shadowingBox) {
+              this.shadowingBox.innerHTML = `<div style="font-weight: 700; color: #38bdf8; padding: 4px 0;">\u23F3 ${isRu ? "\u0410\u043D\u0430\u043B\u0438\u0437\u0438\u0440\u0443\u0435\u043C \u043F\u0440\u043E\u0438\u0437\u043D\u043E\u0448\u0435\u043D\u0438\u0435..." : "Evaluating pronunciation..."}</div>`;
+            }
+          },
+          onResult: (evaluation) => {
+            this.activePronSession = null;
+            this.isSentenceShadowingActive = false;
+            this.updateFloatingPillAndTranscript();
+            this.highlightSubtitleTokensByEvaluation(evaluation);
+            if (!this.shadowingBox) return;
+            this.shadowingBox.innerHTML = this.renderPronunciationEvaluationHtml(cleanSentence, locale, evaluation, true);
+            this.bindPronunciationBoxActions(
+              this.shadowingBox,
+              cleanSentence,
+              locale,
+              evaluation,
+              () => this.triggerSentenceShadowing(),
+              () => {
+                this.clearSubtitlePronunciationHighlights();
+                if (this.shadowingBox) {
+                  this.shadowingBox.style.display = "none";
+                  this.shadowingBox.innerHTML = "";
+                }
+                revokeLastRecordedAudio();
+              }
+            );
+          },
+          onError: (msg) => {
+            this.activePronSession = null;
+            this.isSentenceShadowingActive = false;
+            this.updateFloatingPillAndTranscript();
+            if (!this.shadowingBox) return;
+            this.shadowingBox.innerHTML = `
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; color: #fb7185;">
+              <span>\u26A0\uFE0F ${this.escapeHtml(msg)}</span>
+              <div style="display: flex; gap: 6px;">
+                <button type="button" class="pron-act-btn" data-pron-act="retry">\u{1F504} ${isRu ? "\u041F\u043E\u0432\u0442\u043E\u0440\u0438\u0442\u044C" : "Retry"}</button>
+                <button type="button" class="pron-act-btn" data-pron-act="close">\u2715</button>
+              </div>
+            </div>
+          `;
+            this.shadowingBox.querySelector('[data-pron-act="retry"]')?.addEventListener("click", (e2) => {
+              e2.stopPropagation();
+              this.triggerSentenceShadowing();
+            });
+            this.shadowingBox.querySelector('[data-pron-act="close"]')?.addEventListener("click", (e2) => {
+              e2.stopPropagation();
+              if (this.shadowingBox) {
+                this.shadowingBox.style.display = "none";
+                this.shadowingBox.innerHTML = "";
+              }
+            });
+          }
+        },
+        serverBaseUrl,
+        uiLang
+      );
+      this.activePronSession = session;
+      session.start();
     }
     jumpToPreviousCue() {
       if (!this.videoElement) return;
@@ -46410,6 +47638,15 @@
  * 
  * Direct unified access to Lectura's Auto-Ignore List engine for the Browser Extension.
  * Provides instant O(1) checks against Cities, Names, Tech brands, Gaming, Cinema, Music, Brands, Anglicisms.
+ */
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Hybrid Pronunciation Assessment & Voice Comparison Engine (Lingopie-style)
+ * - Real-time Web Speech API recognition + in-memory MediaRecorder for "Compare My Voice"
+ * - Automatic server-side Whisper fallback (/api/whisper/pronounce) when browser SpeechRecognition is unavailable
+ * - Word-by-word alignment & phonetic/Levenshtein scoring (Green / Yellow / Red)
  */
 /*! Bundled license information:
 

@@ -813,4 +813,89 @@ router.post("/unload", (_req: Request, res: Response) => {
   res.json({ success: true, message: "Whisper model successfully unloaded and RAM freed." });
 });
 
+// 8. Fast Short Audio Pronunciation Transcription Fallback (1-6s clips)
+router.post("/pronounce", async (req: Request, res: Response) => {
+  const { audioBase64, language } = req.body || {};
+  if (!audioBase64 || typeof audioBase64 !== "string") {
+    return res.status(400).json({ error: "Missing audioBase64 payload" });
+  }
+
+  const cleanBase64 = audioBase64.replace(/^data:audio\/[^;]+;base64,/, "");
+  const tempFile = path.join(uploadDir, `pronounce_${Date.now()}_${Math.random().toString(36).slice(2, 7)}.webm`);
+
+  try {
+    fs.writeFileSync(tempFile, Buffer.from(cleanBase64, "base64"));
+    const cacheDir = path.join(process.env.DATA_DIR || process.cwd(), "models", "whisper");
+    const pythonPath = resolvePythonExecutable();
+    const workerScript = path.join(process.cwd(), "server", "whisper", "whisper_worker.py");
+    const langCode = language ? String(language).trim().toLowerCase().split(/[-_]/)[0] : "auto";
+    const modelToUse = loadedModelName || "base";
+
+    const args = [
+      workerScript,
+      tempFile,
+      "--model",
+      modelToUse,
+      "--language",
+      langCode || "auto",
+      "--threads",
+      "4",
+      "--cache-dir",
+      cacheDir,
+    ];
+
+    const transcriptText = await new Promise<string>((resolve, reject) => {
+      const proc = spawn(pythonPath, args, { stdio: ["ignore", "pipe", "pipe"] });
+      let lastText = "";
+      let errOut = "";
+      const timeout = setTimeout(() => {
+        try { proc.kill("SIGKILL"); } catch (_) {}
+        reject(new Error("Pronunciation transcription timed out"));
+      }, 15000);
+
+      proc.stdout.on("data", (chunk) => {
+        const lines = chunk.toString().split(/\r?\n/).filter(Boolean);
+        for (const line of lines) {
+          try {
+            const parsed = JSON.parse(line);
+            if (parsed.type === "result" && Array.isArray(parsed.segments)) {
+              lastText = parsed.segments.map((s: any) => (s.text || "").trim()).filter(Boolean).join(" ");
+            } else if (parsed.type === "segment" && parsed.text) {
+              lastText += (lastText ? " " : "") + String(parsed.text).trim();
+            }
+          } catch (_) {}
+        }
+      });
+
+      proc.stderr.on("data", (chunk) => {
+        errOut += chunk.toString();
+      });
+
+      proc.on("close", (code) => {
+        clearTimeout(timeout);
+        if (code === 0 || lastText) {
+          loadedModelName = modelToUse;
+          lastActiveTimestamp = Date.now();
+          resolve(lastText.trim());
+        } else {
+          reject(new Error(errOut || `Whisper exited with code ${code}`));
+        }
+      });
+
+      proc.on("error", (err) => {
+        clearTimeout(timeout);
+        reject(err);
+      });
+    });
+
+    return res.json({ success: true, transcript: transcriptText });
+  } catch (err: any) {
+    return res.status(500).json({ error: err?.message || "Failed to transcribe pronunciation audio" });
+  } finally {
+    try {
+      if (fs.existsSync(tempFile)) fs.unlinkSync(tempFile);
+    } catch (_) {}
+  }
+});
+
 export default router;

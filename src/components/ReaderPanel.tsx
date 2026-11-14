@@ -49,6 +49,7 @@ import { useWordStore, SelectedWordData, extractSelectedWordText, sanitizePhrase
 import { useUIStore } from "../store/uiStore";
 import { useSettingsStore } from "../store/settingsStore";
 import WordToken from "./WordToken";
+import { usePronunciationTrainer, PronunciationMicButton, PronunciationResultPanel } from "./PronunciationChecker";
 import { useAppearanceStore, FONT_SIZE_CSS, LINE_HEIGHT_CSS, BADGE_LINE_HEIGHT_CSS, FONT_FAMILY_CSS } from "../store/useAppearanceStore";
 
 const getLangCode = (lang?: string): string => {
@@ -505,7 +506,70 @@ function ReaderPanel({
   });
 
   const isTextMode = activeSettings.readerViewStyle === "text";
+  const showTimestamps = Boolean(
+    hasTimestamps &&
+    (activeSettings.showTimestamps === undefined ||
+     activeSettings.showTimestamps === true ||
+     activeSettings.showTimestamps === "true")
+  );
   const [isTocOpen, setIsTocOpen] = useState(false);
+
+  // Sentence Shadowing (Pronunciation Check for whole subtitle/segment row)
+  const [shadowingSegmentIdx, setShadowingSegmentIdx] = useState<number | null>(null);
+  const [shadowingText, setShadowingText] = useState<string>("");
+  const shadowingAutoStartRef = useRef(false);
+
+  const shadowingTrainer = usePronunciationTrainer({
+    targetText: shadowingText,
+    targetLanguage: lesson.targetLanguage,
+    settings: activeSettings as any,
+  });
+
+  useEffect(() => {
+    if (shadowingAutoStartRef.current && shadowingText.trim()) {
+      shadowingAutoStartRef.current = false;
+      shadowingTrainer.toggleRecording();
+    }
+  }, [shadowingText, shadowingTrainer]);
+
+  const handleTriggerSegmentShadowing = (globalIdx: number, rawText: string) => {
+    const clean = (rawText || "").replace(/\s+/g, " ").trim();
+    if (!clean) return;
+    if (shadowingSegmentIdx === globalIdx && shadowingText === clean) {
+      shadowingTrainer.toggleRecording();
+    } else {
+      shadowingAutoStartRef.current = true;
+      setShadowingSegmentIdx(globalIdx);
+      setShadowingText(clean);
+    }
+  };
+
+  // Hotkey [M] to trigger Shadowing on the currently active subtitle/segment
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName) || target.isContentEditable)
+      ) {
+        return;
+      }
+      if (e.key.toUpperCase() === "M") {
+        if (activeSettings?.showReaderMicButton === false) return;
+        const targetIdx =
+          activeSegmentIndex !== null && activeSegmentIndex !== undefined && activeSegmentIndex >= 0
+            ? activeSegmentIndex
+            : shadowingSegmentIdx;
+        if (targetIdx !== null && targetIdx !== undefined && segments[targetIdx]) {
+          e.preventDefault();
+          handleTriggerSegmentShadowing(targetIdx, segments[targetIdx].text);
+        }
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [activeSegmentIndex, shadowingSegmentIdx, segments, shadowingText, shadowingTrainer, activeSettings?.showReaderMicButton]);
 
   useEffect(() => {
     const handleToggleToc = () => setIsTocOpen((prev) => !prev);
@@ -2545,8 +2609,8 @@ function ReaderPanel({
           };
 
           if (hasTimestamps) {
-            const showTs = activeSettings.showTimestamps === undefined ? true : (activeSettings.showTimestamps === "false" ? false : Boolean(activeSettings.showTimestamps));
-            // Render beautiful unified line-by-line subtitle transcript layout
+            const showTs = showTimestamps;
+            // Render beautiful unified line-by-line subtitle transcript layout with gutter timestamps
             return (
               <div 
                 key={pIdx} 
@@ -2560,14 +2624,18 @@ function ReaderPanel({
                     }
                   }
                 }}
-                className={`reader-line-item relative hover:z-20 flex items-baseline ${showTs ? "gap-3 px-3 sm:px-4" : "gap-0 px-2 sm:px-3"} border-l-[3.5px] rounded-r-2xl transition-colors duration-150 ${getSegmentSpacingClass()} ${
+                className={`reader-line-item group/seg relative hover:z-20 flex items-baseline ${
+                  showTs 
+                    ? "gap-2 sm:gap-2.5 pl-1.5 sm:pl-2 pr-2 sm:pr-3 -ml-1 lg:-ml-5" 
+                    : "gap-0 px-2 sm:px-3"
+                } border-l-[3.5px] rounded-r-2xl transition-colors duration-150 ${getSegmentSpacingClass()} ${
                   isSegmentActive 
                     ? "bg-amber-500/8 dark:bg-amber-500/5 border-amber-500 shadow-xs scale-[1.008]" 
                     : "border-transparent hover:bg-zinc-100/30 dark:hover:bg-zinc-800/10"
                 } ${!showTs && seg.timestamp ? "cursor-pointer" : ""}`}
               >
                 {showTs && (
-                  <div className="w-12 sm:w-16 shrink-0 select-none text-left pt-0.5">
+                  <div className="min-w-[2.75rem] shrink-0 select-none text-left pt-0.5">
                     {seg.timestamp ? (
                       <button
                         type="button"
@@ -2594,9 +2662,42 @@ function ReaderPanel({
                   </div>
                 )}
                 <div className="flex-1 min-w-0 w-full pl-0">
-                  <p className="m-0 text-left antialiased text-inherit selection:bg-teal-200 dark:selection:bg-teal-900 w-full">
-                    {renderParagraphContent()}
-                  </p>
+                  <div className="flex items-start justify-between gap-2 w-full">
+                    <p className="m-0 text-left antialiased text-inherit selection:bg-teal-200 dark:selection:bg-teal-900 flex-1 min-w-0">
+                      {renderParagraphContent()}
+                    </p>
+                    {activeSettings?.showReaderMicButton !== false && (
+                      <div
+                        className={`shrink-0 pt-0.5 transition-opacity ${
+                          isSegmentActive || shadowingSegmentIdx === globalSegmentIdx
+                            ? "opacity-100"
+                            : "opacity-0 group-hover/seg:opacity-100"
+                        }`}
+                      >
+                        <PronunciationMicButton
+                          size="sm"
+                          state={shadowingSegmentIdx === globalSegmentIdx ? shadowingTrainer.state : "idle"}
+                          onClick={() => handleTriggerSegmentShadowing(globalSegmentIdx, seg.text)}
+                        />
+                      </div>
+                    )}
+                  </div>
+                  {activeSettings?.showReaderMicButton !== false && shadowingSegmentIdx === globalSegmentIdx && (
+                    <PronunciationResultPanel
+                      state={shadowingTrainer.state}
+                      interimText={shadowingTrainer.interimText}
+                      evaluation={shadowingTrainer.evaluation}
+                      errorMsg={shadowingTrainer.errorMsg}
+                      isPlayingMyVoice={shadowingTrainer.isPlayingMyVoice}
+                      onToggleRecording={shadowingTrainer.toggleRecording}
+                      onPlayMyVoice={shadowingTrainer.playMyVoice}
+                      onPlayReference={shadowingTrainer.playReferenceVoice}
+                      onClose={() => {
+                        shadowingTrainer.closePanel();
+                        setShadowingSegmentIdx(null);
+                      }}
+                    />
+                  )}
                 </div>
               </div>
             );

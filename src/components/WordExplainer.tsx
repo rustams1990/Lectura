@@ -13,6 +13,7 @@ import ContextSearchResults from "./ContextSearchResults";
 import ImageSearch from "./ImageSearch";
 import AiExplainerChat from "./AiExplainerChat";
 import WordNetSynsetsView from "./WordNetSynsetsView";
+import { usePronunciationTrainer, PronunciationMicButton, PronunciationResultPanel } from "./PronunciationChecker";
 import { BookOpen, Check, HelpCircle, Loader2, Award, Volume2, Ban, Sparkles, Tag, Plus, X, ChevronDown, ChevronUp, Trash2, Edit, ExternalLink, AppWindow, Image, Upload, Languages, Save, Layers, Network, Clock } from "lucide-react";
 import { useTranslation, Trans } from "react-i18next";
 import { useToast } from "../context/ToastContext";
@@ -658,6 +659,13 @@ function WordExplainer({
   const [accentOpen, setAccentOpen] = useState(false);
   const [savedMeaningOpen, setSavedMeaningOpen] = useState(true);
   const [dictionariesOpen, setDictionariesOpen] = useState(true);
+
+  const pronTrainer = usePronunciationTrainer({
+    targetText: word || "",
+    targetLanguage,
+    settings,
+    onPlayReference: () => handlePlaySpeech(),
+  });
   const [wordVariationsOpen, setWordVariationsOpen] = useState(false);
   const [translationSourceOpen, setTranslationSourceOpen] = useState(() => {
     if (typeof window !== "undefined") {
@@ -2172,6 +2180,13 @@ function WordExplainer({
                 <path d="M0 0l5 6 5-6z"/>
               </svg>
             </button>
+            {settings?.showReaderMicButton !== false && (
+              <PronunciationMicButton
+                state={pronTrainer.state}
+                onClick={pronTrainer.toggleRecording}
+                className="ml-1"
+              />
+            )}
             {/* Accent dropdown panel — always available */}
             {accentOpen && (() => {
               const currentLocale = getEffectiveTtsLocale(targetLanguage, settings);
@@ -2381,6 +2396,21 @@ function WordExplainer({
           </button>
         )}
       </div>
+
+      {settings?.showReaderMicButton !== false && (
+        <PronunciationResultPanel
+          state={pronTrainer.state}
+          interimText={pronTrainer.interimText}
+          evaluation={pronTrainer.evaluation}
+          errorMsg={pronTrainer.errorMsg}
+          isPlayingMyVoice={pronTrainer.isPlayingMyVoice}
+          onToggleRecording={pronTrainer.toggleRecording}
+          onPlayMyVoice={pronTrainer.playMyVoice}
+          onPlayReference={pronTrainer.playReferenceVoice}
+          onClose={pronTrainer.closePanel}
+          compact
+        />
+      )}
 
       {ttsWarning && (
         <div className="p-2.5 bg-amber-50 dark:bg-amber-950/25 text-amber-700 dark:text-amber-300 border border-amber-200/50 dark:border-amber-900/50 text-[11px] rounded-xl flex items-center justify-between gap-1 leading-snug shrink-0">
