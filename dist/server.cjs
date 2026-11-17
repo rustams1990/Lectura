@@ -2808,6 +2808,7 @@ function setupSchema(db) {
       contextRelation TEXT,
       status TEXT NOT NULL,
       createdAt INTEGER,
+      updatedAt INTEGER,
       tags TEXT,
       imageUrl TEXT,
       audioClipUrl TEXT,
@@ -3322,6 +3323,12 @@ function setupSchema(db) {
   if (!currentWordsCols.includes("audioClipUrl")) {
     try {
       db.exec(`ALTER TABLE words ADD COLUMN audioClipUrl TEXT;`);
+    } catch (_) {
+    }
+  }
+  if (!currentWordsCols.includes("updatedAt")) {
+    try {
+      db.exec(`ALTER TABLE words ADD COLUMN updatedAt INTEGER;`);
     } catch (_) {
     }
   }
@@ -11986,6 +11993,7 @@ function getLocalServerDb(userId = "default") {
         contextRelation: w.contextRelation || "",
         status: w.status,
         createdAt: w.createdAt,
+        updatedAt: typeof w.updatedAt === "number" ? w.updatedAt : void 0,
         tags: w.tags ? JSON.parse(w.tags) : [],
         imageUrl: w.imageUrl,
         audioClipUrl: w.audioClipUrl,
@@ -12170,10 +12178,10 @@ function saveLocalServerDb(userId = "default", data) {
     `);
     const insertWord = db.prepare(`
       INSERT OR REPLACE INTO words (
-        id, user_id, language_code, word, translation, definition, ipa, grammar, contextRelation, status, createdAt, tags, imageUrl, audioClipUrl, examples,
+        id, user_id, language_code, word, translation, definition, ipa, grammar, contextRelation, status, createdAt, updatedAt, tags, imageUrl, audioClipUrl, examples,
         spellingCorrectCount, spellingIncorrectCount, spellingAccentCount, lastSpelledCorrectly, lastSpelledWithAccentError, spellingExclude,
         srsNextReview, srsInterval, srsEaseFactor, srsRepetitions
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     const insertWordLink = db.prepare(`
       INSERT OR REPLACE INTO word_links (user_id, language_code, word_from, word_to) VALUES (?, ?, ?, ?)
@@ -12268,14 +12276,14 @@ function saveLocalServerDb(userId = "default", data) {
       } else if (incomingVocabKeys.length > 0) {
         const existingWordsMap = /* @__PURE__ */ new Map();
         const selectSingleWordStmt = incomingVocabKeys.length <= 25 ? db.prepare(
-          `SELECT id, translation, definition, ipa, grammar, contextRelation, status, tags, imageUrl, audioClipUrl, examples,
+          `SELECT id, translation, definition, ipa, grammar, contextRelation, status, updatedAt, tags, imageUrl, audioClipUrl, examples,
                       spellingCorrectCount, spellingIncorrectCount, spellingAccentCount, lastSpelledCorrectly, lastSpelledWithAccentError, spellingExclude,
                       srsNextReview, srsInterval, srsEaseFactor, srsRepetitions
                FROM words WHERE id = ? AND user_id = ?`
         ) : null;
         if (incomingVocabKeys.length > 25) {
           const existingRows = db.prepare(
-            `SELECT id, translation, definition, ipa, grammar, contextRelation, status, tags, imageUrl, audioClipUrl, examples,
+            `SELECT id, translation, definition, ipa, grammar, contextRelation, status, updatedAt, tags, imageUrl, audioClipUrl, examples,
                     spellingCorrectCount, spellingIncorrectCount, spellingAccentCount, lastSpelledCorrectly, lastSpelledWithAccentError, spellingExclude,
                     srsNextReview, srsInterval, srsEaseFactor, srsRepetitions
              FROM words WHERE user_id = ?`
@@ -12316,6 +12324,10 @@ function saveLocalServerDb(userId = "default", data) {
           const nextSrsEase = val.srsEaseFactor || null;
           const nextSrsReps = val.srsRepetitions || null;
           const existingW = selectSingleWordStmt ? selectSingleWordStmt.get(wordId, userId) : existingWordsMap.get(wordId);
+          const incomingUpdatedAt = typeof val.updatedAt === "number" ? val.updatedAt : Date.now();
+          if (existingW && typeof existingW.updatedAt === "number" && typeof val.updatedAt === "number" && existingW.updatedAt > val.updatedAt) {
+            continue;
+          }
           if (existingW && existingW.status === nextStatus && existingW.translation === nextTranslation && existingW.definition === nextDefinition && existingW.ipa === nextIpa && existingW.grammar === nextGrammar && existingW.contextRelation === nextContextRelation && existingW.tags === tagsJson && existingW.imageUrl === nextImageUrl && existingW.audioClipUrl === nextAudioClipUrl && existingW.examples === examplesJson && (existingW.spellingCorrectCount || 0) === nextSpellCorrect && (existingW.spellingIncorrectCount || 0) === nextSpellIncorrect && (existingW.spellingAccentCount || 0) === nextSpellAccent && existingW.lastSpelledCorrectly === nextLastSpelled && (existingW.lastSpelledWithAccentError || 0) === nextLastAccentErr && (existingW.spellingExclude || 0) === nextSpellExclude && existingW.srsNextReview === nextSrsReview && existingW.srsInterval === nextSrsInterval && existingW.srsEaseFactor === nextSrsEase && existingW.srsRepetitions === nextSrsReps) {
             continue;
           }
@@ -12332,6 +12344,7 @@ function saveLocalServerDb(userId = "default", data) {
             nextContextRelation,
             nextStatus,
             val.createdAt || Date.now(),
+            incomingUpdatedAt,
             tagsJson,
             nextImageUrl,
             nextAudioClipUrl,
@@ -19994,7 +20007,7 @@ var import_util3 = require("util");
 var import_adm_zip2 = __toESM(require("adm-zip"), 1);
 
 // src/version.ts
-var APP_VERSION = "v1.0.51";
+var APP_VERSION = "v1.0.52";
 
 // server/updaterService.ts
 var execAsync = (0, import_util3.promisify)(import_child_process5.exec);

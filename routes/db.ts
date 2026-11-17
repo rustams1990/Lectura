@@ -195,6 +195,7 @@ export function getLocalServerDb(userId: string = "default") {
         contextRelation: w.contextRelation || "",
         status: w.status,
         createdAt: w.createdAt,
+        updatedAt: typeof w.updatedAt === "number" ? w.updatedAt : undefined,
         tags: w.tags ? JSON.parse(w.tags) : [],
         imageUrl: w.imageUrl,
         audioClipUrl: w.audioClipUrl,
@@ -380,10 +381,10 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
 
     const insertWord = db.prepare(`
       INSERT OR REPLACE INTO words (
-        id, user_id, language_code, word, translation, definition, ipa, grammar, contextRelation, status, createdAt, tags, imageUrl, audioClipUrl, examples,
+        id, user_id, language_code, word, translation, definition, ipa, grammar, contextRelation, status, createdAt, updatedAt, tags, imageUrl, audioClipUrl, examples,
         spellingCorrectCount, spellingIncorrectCount, spellingAccentCount, lastSpelledCorrectly, lastSpelledWithAccentError, spellingExclude,
         srsNextReview, srsInterval, srsEaseFactor, srsRepetitions
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const insertWordLink = db.prepare(`
@@ -496,7 +497,7 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
         const existingWordsMap = new Map<string, any>();
         const selectSingleWordStmt = incomingVocabKeys.length <= 25
           ? db.prepare(
-              `SELECT id, translation, definition, ipa, grammar, contextRelation, status, tags, imageUrl, audioClipUrl, examples,
+              `SELECT id, translation, definition, ipa, grammar, contextRelation, status, updatedAt, tags, imageUrl, audioClipUrl, examples,
                       spellingCorrectCount, spellingIncorrectCount, spellingAccentCount, lastSpelledCorrectly, lastSpelledWithAccentError, spellingExclude,
                       srsNextReview, srsInterval, srsEaseFactor, srsRepetitions
                FROM words WHERE id = ? AND user_id = ?`
@@ -504,7 +505,7 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
           : null;
         if (incomingVocabKeys.length > 25) {
           const existingRows = db.prepare(
-            `SELECT id, translation, definition, ipa, grammar, contextRelation, status, tags, imageUrl, audioClipUrl, examples,
+            `SELECT id, translation, definition, ipa, grammar, contextRelation, status, updatedAt, tags, imageUrl, audioClipUrl, examples,
                     spellingCorrectCount, spellingIncorrectCount, spellingAccentCount, lastSpelledCorrectly, lastSpelledWithAccentError, spellingExclude,
                     srsNextReview, srsInterval, srsEaseFactor, srsRepetitions
              FROM words WHERE user_id = ?`
@@ -553,6 +554,15 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
           const existingW = selectSingleWordStmt
             ? (selectSingleWordStmt.get(wordId, userId) as any)
             : existingWordsMap.get(wordId);
+          const incomingUpdatedAt = typeof val.updatedAt === "number" ? val.updatedAt : Date.now();
+          if (
+            existingW &&
+            typeof existingW.updatedAt === "number" &&
+            typeof val.updatedAt === "number" &&
+            existingW.updatedAt > val.updatedAt
+          ) {
+            continue;
+          }
           if (
             existingW &&
             existingW.status === nextStatus &&
@@ -592,6 +602,7 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
             nextContextRelation,
             nextStatus,
             val.createdAt || Date.now(),
+            incomingUpdatedAt,
             tagsJson,
             nextImageUrl,
             nextAudioClipUrl,

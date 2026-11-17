@@ -31,12 +31,19 @@ export function mergeCloudVocabWithLocal(
   for (const [key, localItem] of Object.entries(localVocab)) {
     if (!localItem) continue;
     const lowerKey = key.toLowerCase();
-    const localTime = localItem.updatedAt || localWordMutations.get(lowerKey) || 0;
+    const mutTime = localWordMutations.get(lowerKey) || 0;
+    const localTime = localItem.updatedAt || mutTime || 0;
     const cloudItem = cloudVocab[key];
     const cloudTime = cloudItem?.updatedAt || 0;
 
-    // If local word was mutated within 60s OR local timestamp is newer, preserve local
-    if (localTime > 0 && (localTime > cloudTime || (now - localTime < 60000))) {
+    // 1. If mutated locally on this device within the last 60s, always keep local optimistic state
+    if (mutTime > 0 && now - mutTime < 60000) {
+      merged[key] = localItem;
+    // 2. If server has a timestamp and local timestamp is strictly newer, keep local
+    } else if (cloudTime > 0 && localTime > cloudTime) {
+      merged[key] = localItem;
+    // 3. If word exists only locally and was not deleted on server (newly created locally)
+    } else if (!cloudItem && mutTime > 0) {
       merged[key] = localItem;
     }
   }

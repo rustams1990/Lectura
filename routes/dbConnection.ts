@@ -38,6 +38,7 @@ function setupSchema(db: Database.Database) {
       contextRelation TEXT,
       status TEXT NOT NULL,
       createdAt INTEGER,
+      updatedAt INTEGER,
       tags TEXT,
       imageUrl TEXT,
       audioClipUrl TEXT,
@@ -443,10 +444,13 @@ function setupSchema(db: Database.Database) {
     try { db.exec(`ALTER TABLE playlists ADD COLUMN pinned INTEGER DEFAULT 0;`); } catch (_) {}
   }
 
-  // words: audioClipUrl column migration
+  // words: audioClipUrl & updatedAt column migrations
   const currentWordsCols = (db.prepare("PRAGMA table_info(words)").all() as any[]).map(c => c.name);
   if (!currentWordsCols.includes("audioClipUrl")) {
     try { db.exec(`ALTER TABLE words ADD COLUMN audioClipUrl TEXT;`); } catch (_) {}
+  }
+  if (!currentWordsCols.includes("updatedAt")) {
+    try { db.exec(`ALTER TABLE words ADD COLUMN updatedAt INTEGER;`); } catch (_) {}
   }
 
   // Purge any empty phantom lessons created by background activity tracking
