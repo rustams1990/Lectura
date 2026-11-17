@@ -12577,7 +12577,17 @@ function saveLocalServerDb(userId = "default", data) {
         }
       }
       if (data.listeningSeconds !== void 0) {
-        insertMetadata.run(userId, "listeningSeconds", String(data.listeningSeconds));
+        const incomingListening = Math.max(0, Number(data.listeningSeconds) || 0);
+        let finalListening = incomingListening;
+        if (!data.forceOverwriteListening) {
+          try {
+            const existingListeningRow = db.prepare("SELECT value FROM metadata WHERE user_id = ? AND key = 'listeningSeconds'").get(userId);
+            const existingListening = existingListeningRow ? Math.max(0, Number(existingListeningRow.value) || 0) : 0;
+            finalListening = Math.max(existingListening, incomingListening);
+          } catch (_) {
+          }
+        }
+        insertMetadata.run(userId, "listeningSeconds", String(finalListening));
       }
       if (data.readerSettings && typeof data.readerSettings === "object") {
         let existingSettings = {};
@@ -18539,6 +18549,7 @@ function handleTrackActivity(req, res) {
         "INSERT OR REPLACE INTO metadata (user_id, key, value) VALUES (?, 'listeningSeconds', ?)"
       ).run(userId, String(newTotal));
     }
+    touchUserDbVersion(userId);
     return res.json({
       success: true,
       lessonId: recordedLessonId,
@@ -19983,7 +19994,7 @@ var import_util3 = require("util");
 var import_adm_zip2 = __toESM(require("adm-zip"), 1);
 
 // src/version.ts
-var APP_VERSION = "v1.0.50";
+var APP_VERSION = "v1.0.51";
 
 // server/updaterService.ts
 var execAsync = (0, import_util3.promisify)(import_child_process5.exec);

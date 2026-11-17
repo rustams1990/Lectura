@@ -892,7 +892,18 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
       }
 
       if (data.listeningSeconds !== undefined) {
-        insertMetadata.run(userId, "listeningSeconds", String(data.listeningSeconds));
+        const incomingListening = Math.max(0, Number(data.listeningSeconds) || 0);
+        let finalListening = incomingListening;
+        if (!data.forceOverwriteListening) {
+          try {
+            const existingListeningRow = db
+              .prepare("SELECT value FROM metadata WHERE user_id = ? AND key = 'listeningSeconds'")
+              .get(userId) as { value: string } | undefined;
+            const existingListening = existingListeningRow ? Math.max(0, Number(existingListeningRow.value) || 0) : 0;
+            finalListening = Math.max(existingListening, incomingListening);
+          } catch (_) {}
+        }
+        insertMetadata.run(userId, "listeningSeconds", String(finalListening));
       }
 
       if (data.readerSettings && typeof data.readerSettings === "object") {

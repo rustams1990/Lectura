@@ -588,7 +588,7 @@ export default function App() {
         undefined,
         playlistsRef.current
       ).catch(() => {});
-    }, 15000);
+    }, 3000);
   };
 
   const handleUpdateHistory = (newHistory: HistoryEntry[], deletedIds?: string[]) => {
@@ -1672,6 +1672,9 @@ export default function App() {
         });
         serverInitialLoadComplete.current = true;
         setIsInitialServerLoading(false);
+        if (hasPendingServerPushRef.current && Date.now() - lastLocalChangeTime.current >= 1500) {
+          schedulePendingPushFlush();
+        }
         return;
       }
 
@@ -1694,10 +1697,6 @@ export default function App() {
         consecutiveServerLoadErrorsRef.current = 0;
         setLocalSyncError(false);
         const receivedEtag = res.headers.get("etag");
-        if (receivedEtag) {
-          serverDbEtagRef.current = receivedEtag;
-          try { localStorage.setItem(`lectura_etag_${activeUserId || 'default'}`, receivedEtag); } catch (_) {}
-        }
         setSyncProgress({
           isSyncing: true,
           percent: 65,
@@ -1705,7 +1704,6 @@ export default function App() {
           error: false,
           lastSyncTime: lastSyncSuccessTime.current,
         });
-        lastSyncSuccessTime.current = Date.now();
         const body = await safeJsonParse(res);
         if (!force && storageMode === "server" && serverInitialLoadComplete.current && Date.now() - lastLocalChangeTime.current < 15000) {
           setIsSyncing(false);
@@ -1718,6 +1716,11 @@ export default function App() {
           });
           return;
         }
+        if (receivedEtag) {
+          serverDbEtagRef.current = receivedEtag;
+          try { localStorage.setItem(`lectura_etag_${activeUserId || 'default'}`, receivedEtag); } catch (_) {}
+        }
+        lastSyncSuccessTime.current = Date.now();
         if (body.status === "ok" && body.data) {
           const d = body.data;
           const normalizedCloudVocab = normalizeVocabRecord(d.vocab);
@@ -1811,10 +1814,23 @@ export default function App() {
           if (d.lessonTypes) setLessonTypes(d.lessonTypes);
 
           // Smart merge: NEVER overwrite recent local word mutations with stale server data
+          let hasUnsyncedLocalChangesAfterMerge = hasPendingServerPushRef.current;
+          try {
+            if (localStorage.getItem(`lectura_pending_push_${activeUserId || 'default'}`) === "1") {
+              hasUnsyncedLocalChangesAfterMerge = true;
+            }
+          } catch (_) {}
+
           setVocab((prevVocab) => {
             const merged = mergeCloudVocabWithLocal(normalizedCloudVocab, prevVocab);
             vocabRef.current = merged;
-            lastSyncedVocabRef.current = merged;
+            lastSyncedVocabRef.current = normalizedCloudVocab;
+            for (const [k, v] of Object.entries(merged)) {
+              if (normalizedCloudVocab[k] !== v) {
+                hasUnsyncedLocalChangesAfterMerge = true;
+                break;
+              }
+            }
             return merged;
           });
           setWordLinks(normalizedCloudWordLinks);
@@ -2008,21 +2024,30 @@ export default function App() {
               if (prevSyncedMap && prevSyncedMap.has(h.id)) {
                 return false;
               }
-              // On initial boot (prevSyncedMap is null), only preserve very recent local sessions (< 2 minutes old)
+              // On initial boot (prevSyncedMap is null), preserve recent sessions (< 2 min)
+              // or older unsynced sessions when this device has a pending push marker
               const tMs = new Date(h.timestamp || 0).getTime();
-              if (!prevSyncedMap && (!isNaN(tMs) && Date.now() - tMs > 120000)) {
+              if (!prevSyncedMap && !hasUnsyncedLocalChangesAfterMerge && (!isNaN(tMs) && Date.now() - tMs > 120000)) {
                 return false;
               }
               return true;
             });
 
+            if (unsyncedLocalHistory.some((h) => !serverIdSet.has(h.id))) {
+              hasUnsyncedLocalChangesAfterMerge = true;
+            }
+
             const cleanHistory = dedupeHistory([...unsyncedLocalHistory, ...cleanServerHistory])
               .filter((h) => !isTombstoned(h));
             setHistory(cleanHistory);
             historyRef.current = cleanHistory;
-            lastSyncedHistoryMapRef.current = new Map(cleanHistory.map((h) => [h.id, h]));
+            lastSyncedHistoryMapRef.current = new Map(cleanServerHistory.map((h) => [h.id, h]));
             safeLocalStorageSetItem("vocab_clone_reading_history", JSON.stringify(cleanHistory));
             settingsStore.setItem("vocab_clone_reading_history", JSON.stringify(cleanHistory)).catch(() => {});
+          }
+
+          if (d.listeningSeconds !== undefined && listeningSecondsRef.current > d.listeningSeconds && hasUnsyncedLocalChangesAfterMerge) {
+            hasUnsyncedLocalChangesAfterMerge = true;
           }
 
           // Sync into local stores (vocab & aliases are persisted via debounced VocabContext effect)
@@ -2136,6 +2161,10 @@ export default function App() {
           } catch (_) {}
 
           serverInitialLoadComplete.current = true;
+          if (hasUnsyncedLocalChangesAfterMerge) {
+            hasPendingServerPushRef.current = true;
+            schedulePendingPushFlush();
+          }
         } else if (body.status === "empty") {
           // Empty server database: Seed it immediately with default lessons
           const seedLessons = normalizeBuiltInLessons(BUILT_IN_LESSONS);
@@ -2216,57 +2245,76 @@ export default function App() {
   const pendingSyncDeletedWordKeysRef = useRef<string[]>([]);
   const pendingSyncDeletedHistoryRef = useRef<string[]>([]);
   const syncDebounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const pendingPushRetryTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const hasPendingServerPushRef = useRef<boolean>(false);
+  const latestPushArgsRef = useRef<{
+    lessons?: Lesson[];
+    lessonTypes?: LessonType[];
+    vocab?: Record<string, VocabItem>;
+    wordLinks?: Record<string, string>;
+    listeningSeconds?: number;
+    languageFlags?: Record<string, string>;
+    history?: HistoryEntry[];
+    readerSettings?: ReaderSettings;
+    pinnedLanguages?: string[];
+    hiddenLanguages?: string[];
+    selectedTargetLanguage?: string;
+    playlists?: Playlist[];
+  }>({});
   const lastSyncedVocabRef = useRef<Record<string, VocabItem> | null>(null);
   const lastSyncedLinksRef = useRef<Record<string, string> | null>(null);
   const lastSyncedLessonsMapRef = useRef<Map<string, Lesson> | null>(null);
   const lastSyncedHistoryMapRef = useRef<Map<string, HistoryEntry> | null>(null);
 
-  const syncDataToLocalServer = async (
-    currentLessons = lessonsRef.current,
-    currentTypes = lessonTypesRef.current,
-    currentVocab = vocabRef.current,
-    currentLinks = wordLinksRef.current,
-    currentListening = listeningSecondsRef.current,
-    currentFlags = languageFlagsRef.current,
-    currentHistory = historyRef.current,
-    deletedLessonIds?: string[],
-    currentSettings = readerSettingsRef.current,
-    currentPinned = pinnedLanguagesRef.current,
-    currentHidden = hiddenLanguagesRef.current,
-    currentSelectedLang = selectedTargetLanguageRef.current,
-    deletedWordKeys?: string[],
-    currentPlaylists = playlistsRef.current,
-    deletedPlaylistIds?: string[],
-    deletedHistoryIds?: string[]
-  ) => {
-    if (storageMode !== "server") return;
-    // Attempt sync even if localSyncError was set, so transient glitches can auto-heal
-    lastLocalChangeTime.current = Date.now();
-    
-    if (deletedLessonIds) pendingSyncDeletedLessonsRef.current.push(...deletedLessonIds);
-    if (deletedPlaylistIds) pendingSyncDeletedPlaylistsRef.current.push(...deletedPlaylistIds);
-    if (deletedWordKeys) pendingSyncDeletedWordKeysRef.current.push(...deletedWordKeys);
-    if (deletedHistoryIds) pendingSyncDeletedHistoryRef.current.push(...deletedHistoryIds);
+  const setPendingPushMarker = (pending: boolean) => {
+    hasPendingServerPushRef.current = pending;
+    try {
+      const markerKey = `lectura_pending_push_${activeUserId || 'default'}`;
+      if (pending) {
+        localStorage.setItem(markerKey, "1");
+      } else {
+        localStorage.removeItem(markerKey);
+      }
+    } catch (_) {}
+  };
 
+  const executeServerDbPush = async (useKeepalive: boolean = false) => {
+    if (storageMode !== "server") return;
     if (syncDebounceTimerRef.current) {
       clearTimeout(syncDebounceTimerRef.current);
-    }
-
-    syncDebounceTimerRef.current = setTimeout(async () => {
       syncDebounceTimerRef.current = null;
-      lastLocalChangeTime.current = Date.now();
+    }
+    if (pendingPushRetryTimerRef.current) {
+      clearTimeout(pendingPushRetryTimerRef.current);
+      pendingPushRetryTimerRef.current = null;
+    }
+    lastLocalChangeTime.current = Date.now();
 
-      const finalDeletedLessonIds = [...new Set(pendingSyncDeletedLessonsRef.current)];
-      const finalDeletedPlaylistIds = [...new Set(pendingSyncDeletedPlaylistsRef.current)];
-      const finalDeletedWordKeys = [...new Set(pendingSyncDeletedWordKeysRef.current)];
-      const finalDeletedHistoryIds = [...new Set(pendingSyncDeletedHistoryRef.current)];
+    const args = latestPushArgsRef.current;
+    const currentLessons = lessonsRef.current || args.lessons || [];
+    const currentTypes = lessonTypesRef.current || args.lessonTypes || [];
+    const currentVocab = vocabRef.current || args.vocab || {};
+    const currentLinks = wordLinksRef.current || args.wordLinks || {};
+    const currentListening = listeningSecondsRef.current ?? args.listeningSeconds ?? 0;
+    const currentFlags = languageFlagsRef.current || args.languageFlags || {};
+    const currentHistory = historyRef.current || args.history || [];
+    const currentSettings = readerSettingsRef.current || args.readerSettings;
+    const currentPinned = pinnedLanguagesRef.current || args.pinnedLanguages || [];
+    const currentHidden = hiddenLanguagesRef.current || args.hiddenLanguages || [];
+    const currentSelectedLang = selectedTargetLanguageRef.current || args.selectedTargetLanguage;
+    const currentPlaylists = playlistsRef.current || args.playlists || [];
 
-      pendingSyncDeletedLessonsRef.current = [];
-      pendingSyncDeletedPlaylistsRef.current = [];
-      pendingSyncDeletedWordKeysRef.current = [];
-      pendingSyncDeletedHistoryRef.current = [];
+    const finalDeletedLessonIds = [...new Set(pendingSyncDeletedLessonsRef.current)];
+    const finalDeletedPlaylistIds = [...new Set(pendingSyncDeletedPlaylistsRef.current)];
+    const finalDeletedWordKeys = [...new Set(pendingSyncDeletedWordKeysRef.current)];
+    const finalDeletedHistoryIds = [...new Set(pendingSyncDeletedHistoryRef.current)];
 
-      try {
+    pendingSyncDeletedLessonsRef.current = [];
+    pendingSyncDeletedPlaylistsRef.current = [];
+    pendingSyncDeletedWordKeysRef.current = [];
+    pendingSyncDeletedHistoryRef.current = [];
+
+    try {
       const postHeaders = buildSyncHeaders(
         { "Content-Type": "application/json" },
         { syncKey: localSyncKey }
@@ -2311,9 +2359,9 @@ export default function App() {
         console.log('[Sync Delete Request]', { deletedHistoryIds: finalDeletedHistoryIds });
       }
 
-      const fullVocab: Record<string, VocabItem> = vocabRef.current || currentVocab || {};
-      const fullLinks: Record<string, string> = wordLinksRef.current || currentLinks || {};
-      const fullLessons: Lesson[] = currentLessons || [];
+      const fullVocab: Record<string, VocabItem> = currentVocab;
+      const fullLinks: Record<string, string> = currentLinks;
+      const fullLessons: Lesson[] = currentLessons;
       let localDeletedHistorySet = new Set<string>(finalDeletedHistoryIds as string[]);
       try {
         const rawLocalDel = localStorage.getItem("vocab_clone_deleted_history_ids");
@@ -2369,39 +2417,43 @@ export default function App() {
         }
       }
 
+      const bodyString = JSON.stringify({
+        data: {
+          isDelta: canUseDelta,
+          lessons: payloadLessons,
+          playlists: currentPlaylists,
+          lessonTypes: currentTypes,
+          vocab: payloadVocab,
+          wordLinks: payloadLinks,
+          listeningSeconds: currentListening,
+          languageFlags: currentFlags,
+          history: payloadHistory,
+          readerSettings: currentSettings,
+          pinnedLanguages: currentPinned,
+          hiddenLanguages: currentHidden,
+          selectedTargetLanguage: currentSelectedLang,
+          dictionaryPreferences,
+          customTags,
+          dailyWordGoal,
+          lastActiveLessonId,
+          videoProgress,
+          readingProgress,
+          deletedLessonIds: finalDeletedLessonIds.length > 0 ? finalDeletedLessonIds : undefined,
+          deletedPlaylistIds: finalDeletedPlaylistIds.length > 0 ? finalDeletedPlaylistIds : undefined,
+          deletedWordKeys: finalDeletedWordKeys.length > 0 ? finalDeletedWordKeys : undefined,
+          deletedHistoryIds: finalDeletedHistoryIds,
+        },
+      });
+
+      const canKeepalive = useKeepalive && bodyString.length < 60000;
       const res = await fetch(resolveApiUrl("/api/server-db"), {
         method: "POST",
         headers: postHeaders,
-        signal: AbortSignal.timeout(30000),
-        body: JSON.stringify({
-          data: {
-            isDelta: canUseDelta,
-            lessons: payloadLessons,
-            playlists: currentPlaylists,
-            lessonTypes: currentTypes,
-            vocab: payloadVocab,
-            wordLinks: payloadLinks,
-            listeningSeconds: listeningSecondsRef.current || currentListening,
-            languageFlags: languageFlagsRef.current || currentFlags,
-            history: payloadHistory,
-            readerSettings: readerSettingsRef.current || currentSettings,
-            pinnedLanguages: currentPinned,
-            hiddenLanguages: currentHidden,
-            selectedTargetLanguage: currentSelectedLang,
-            dictionaryPreferences,
-            customTags,
-            dailyWordGoal,
-            lastActiveLessonId,
-            videoProgress,
-            readingProgress,
-            deletedLessonIds: finalDeletedLessonIds.length > 0 ? finalDeletedLessonIds : undefined,
-            deletedPlaylistIds: finalDeletedPlaylistIds.length > 0 ? finalDeletedPlaylistIds : undefined,
-            deletedWordKeys: finalDeletedWordKeys.length > 0 ? finalDeletedWordKeys : undefined,
-            deletedHistoryIds: finalDeletedHistoryIds,
-          },
-        }),
+        keepalive: canKeepalive,
+        signal: canKeepalive ? undefined : AbortSignal.timeout(30000),
+        body: bodyString,
       });
-      
+
       if (finalDeletedHistoryIds.length > 0) {
         console.log('[Sync Server Response]', res.status);
       }
@@ -2417,6 +2469,7 @@ export default function App() {
         return;
       }
       if (res.ok) {
+        setPendingPushMarker(false);
         setLocalSyncError(false);
         consecutiveServerLoadErrorsRef.current = 0;
         lastSyncedVocabRef.current = fullVocab;
@@ -2433,9 +2486,17 @@ export default function App() {
           error: false,
           lastSyncTime: Date.now(),
         }));
+      } else {
+        throw new Error(`HTTP ${res.status}`);
       }
     } catch (e: any) {
-      console.warn("Failed to auto-sync with local dev server (transient):", e);
+      // Restore deleted IDs so retry won't lose deletions
+      if (finalDeletedLessonIds.length > 0) pendingSyncDeletedLessonsRef.current.push(...finalDeletedLessonIds);
+      if (finalDeletedPlaylistIds.length > 0) pendingSyncDeletedPlaylistsRef.current.push(...finalDeletedPlaylistIds);
+      if (finalDeletedWordKeys.length > 0) pendingSyncDeletedWordKeysRef.current.push(...finalDeletedWordKeys);
+      if (finalDeletedHistoryIds.length > 0) pendingSyncDeletedHistoryRef.current.push(...finalDeletedHistoryIds);
+      setPendingPushMarker(true);
+      console.warn("Failed to auto-sync with local dev server (transient, will retry):", e);
       const isHardOffline = typeof navigator !== "undefined" && !navigator.onLine;
       if (isHardOffline) {
         setSyncProgress(prev => ({
@@ -2446,9 +2507,119 @@ export default function App() {
           error: true,
         }));
       }
+      if (!pendingPushRetryTimerRef.current && storageMode === "server") {
+        pendingPushRetryTimerRef.current = setTimeout(() => {
+          pendingPushRetryTimerRef.current = null;
+          if (hasPendingServerPushRef.current && storageMode === "server") {
+            executeServerDbPush(false).catch(() => {});
+          }
+        }, 5000);
+      }
     }
+  };
+
+  const schedulePendingPushFlush = () => {
+    if (storageMode !== "server") return;
+    if (syncDebounceTimerRef.current) clearTimeout(syncDebounceTimerRef.current);
+    syncDebounceTimerRef.current = setTimeout(() => {
+      syncDebounceTimerRef.current = null;
+      executeServerDbPush(false).catch(() => {});
+    }, 600);
+  };
+
+  const syncDataToLocalServer = async (
+    currentLessons = lessonsRef.current,
+    currentTypes = lessonTypesRef.current,
+    currentVocab = vocabRef.current,
+    currentLinks = wordLinksRef.current,
+    currentListening = listeningSecondsRef.current,
+    currentFlags = languageFlagsRef.current,
+    currentHistory = historyRef.current,
+    deletedLessonIds?: string[],
+    currentSettings = readerSettingsRef.current,
+    currentPinned = pinnedLanguagesRef.current,
+    currentHidden = hiddenLanguagesRef.current,
+    currentSelectedLang = selectedTargetLanguageRef.current,
+    deletedWordKeys?: string[],
+    currentPlaylists = playlistsRef.current,
+    deletedPlaylistIds?: string[],
+    deletedHistoryIds?: string[]
+  ) => {
+    if (storageMode !== "server") return;
+    lastLocalChangeTime.current = Date.now();
+    setPendingPushMarker(true);
+
+    latestPushArgsRef.current = {
+      lessons: currentLessons,
+      lessonTypes: currentTypes,
+      vocab: currentVocab,
+      wordLinks: currentLinks,
+      listeningSeconds: currentListening,
+      languageFlags: currentFlags,
+      history: currentHistory,
+      readerSettings: currentSettings,
+      pinnedLanguages: currentPinned,
+      hiddenLanguages: currentHidden,
+      selectedTargetLanguage: currentSelectedLang,
+      playlists: currentPlaylists,
+    };
+
+    if (deletedLessonIds) pendingSyncDeletedLessonsRef.current.push(...deletedLessonIds);
+    if (deletedPlaylistIds) pendingSyncDeletedPlaylistsRef.current.push(...deletedPlaylistIds);
+    if (deletedWordKeys) pendingSyncDeletedWordKeysRef.current.push(...deletedWordKeys);
+    if (deletedHistoryIds) pendingSyncDeletedHistoryRef.current.push(...deletedHistoryIds);
+
+    if (syncDebounceTimerRef.current) {
+      clearTimeout(syncDebounceTimerRef.current);
+    }
+
+    syncDebounceTimerRef.current = setTimeout(() => {
+      syncDebounceTimerRef.current = null;
+      executeServerDbPush(false).catch(() => {});
     }, 1500);
   };
+
+  // Flush pending sync immediately when app/tab goes to background or page unloads, and retry on reconnect
+  useEffect(() => {
+    if (storageMode !== "server") return;
+    const handleVisibilityOrPageHide = () => {
+      if (document.visibilityState === "hidden") {
+        if (historySyncDebounceFnRef.current) {
+          clearTimeout(historySyncDebounceFnRef.current);
+          historySyncDebounceFnRef.current = null;
+          setPendingPushMarker(true);
+        }
+        if (syncDebounceTimerRef.current || hasPendingServerPushRef.current) {
+          executeServerDbPush(true).catch(() => {});
+        }
+      } else if (document.visibilityState === "visible" && hasPendingServerPushRef.current) {
+        executeServerDbPush(false).catch(() => {});
+      }
+    };
+    const handlePageHide = () => {
+      if (historySyncDebounceFnRef.current) {
+        clearTimeout(historySyncDebounceFnRef.current);
+        historySyncDebounceFnRef.current = null;
+        setPendingPushMarker(true);
+      }
+      if (syncDebounceTimerRef.current || hasPendingServerPushRef.current) {
+        executeServerDbPush(true).catch(() => {});
+      }
+    };
+    const handleOnline = () => {
+      if (hasPendingServerPushRef.current) {
+        executeServerDbPush(false).catch(() => {});
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityOrPageHide);
+    window.addEventListener("pagehide", handlePageHide);
+    window.addEventListener("online", handleOnline);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityOrPageHide);
+      window.removeEventListener("pagehide", handlePageHide);
+      window.removeEventListener("online", handleOnline);
+    };
+  }, [storageMode, localSyncKey, activeUserId]);
 
   // Synchronize with Local Server / Local Cache on mount and mode change
   useEffect(() => {

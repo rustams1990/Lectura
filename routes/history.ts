@@ -337,6 +337,8 @@ export function handleTrackActivity(req: Request, res: Response) {
       ).run(userId, String(newTotal));
     }
 
+    touchUserDbVersion(userId);
+
     return res.json({
       success: true,
       lessonId: recordedLessonId,
